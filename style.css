@@ -1,0 +1,367 @@
+/* ── CSS variables ──────────────────────────────────────────── */
+:root {
+  --color-bg:        #1a1a2e;
+  --color-panel-bg:  #16213e;
+  --color-border:    #0f3460;
+
+  --color-scale:     #3a6bc4;      /* subtle blue tint — scale notes */
+  --color-root:      #e07c24;      /* orange/amber — root note */
+  --color-pressed:   #fffde7;      /* bright near-white — physically pressed */
+
+  --white-key-bg:    #f0ece2;
+  --black-key-bg:    #1e1e1e;
+
+  --key-white-w:     34px;
+  --key-white-h:     160px;
+  --key-black-w:     22px;
+  --key-black-h:     100px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--color-bg);
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Unsupported-browser banner ─────────────────────────────── */
+.unsupported-banner {
+  background: #7b1e1e;
+  color: #fdd;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.app-header {
+  background: var(--color-panel-bg);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem 1.5rem;
+}
+
+.app-header h1 {
+  font-size: 1.6rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #c9d6ff;
+}
+
+/* ── Main layout ─────────────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 2rem 1rem;
+}
+
+/* ── Info panel ─────────────────────────────────────────────── */
+.info-panel {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  text-align: center;
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.key-mode-display {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.key-mode-display #root-name {
+  color: var(--color-root);
+  margin-right: 0.3em;
+}
+
+.chord-info {
+  font-size: 1rem;
+  color: #b0bec5;
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+.mode-alias {
+  font-size: 0.85rem;
+  color: #78909c;
+  letter-spacing: 0.04em;
+  margin-top: -0.3rem;
+}
+
+/* ── Scale notes + steps display ───────────────────────────── */
+.scale-display {
+  font-size: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.scale-grid-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.scale-notes-row,
+.scale-steps-row {
+  display: flex;
+}
+
+.scale-note-item {
+  width: 2.4em;
+  text-align: center;
+  color: #b0bec5;
+}
+
+.scale-steps-row {
+  padding-left: 1.2em; /* half of 2.4em — offsets steps to sit between notes */
+}
+
+.scale-step-item {
+  width: 2.4em;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #606870;
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-display .label,
+.chord-info    .label {
+  color: #78909c;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  align-self: center;
+}
+
+/* ── Scale flavor card ─────────────────────────────────────── */
+.scale-flavor {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  text-align: left;
+}
+
+.flavor-brightness {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.flavor-brightness-label {
+  color: #78909c;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  margin-right: 0.2rem;
+}
+
+.flavor-pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: background 0.25s;
+}
+
+/* Fill pips up to the brightness level (1–7) */
+[data-brightness="1"] .flavor-pip:nth-child(-n+2),
+[data-brightness="2"] .flavor-pip:nth-child(-n+3),
+[data-brightness="3"] .flavor-pip:nth-child(-n+4),
+[data-brightness="4"] .flavor-pip:nth-child(-n+5),
+[data-brightness="5"] .flavor-pip:nth-child(-n+6),
+[data-brightness="6"] .flavor-pip:nth-child(-n+7),
+[data-brightness="7"] .flavor-pip:nth-child(-n+8) {
+  background: var(--color-root); /* orange — bright end */
+}
+/* Override: amber for neutral levels 1–5 */
+[data-brightness="1"] .flavor-pip:nth-child(-n+2),
+[data-brightness="2"] .flavor-pip:nth-child(-n+3),
+[data-brightness="3"] .flavor-pip:nth-child(-n+4),
+[data-brightness="4"] .flavor-pip:nth-child(-n+5),
+[data-brightness="5"] .flavor-pip:nth-child(-n+6) {
+  background: #c4a040;
+}
+/* Override: blue for dark levels 1–3 */
+[data-brightness="1"] .flavor-pip:nth-child(-n+2),
+[data-brightness="2"] .flavor-pip:nth-child(-n+3),
+[data-brightness="3"] .flavor-pip:nth-child(-n+4) {
+  background: var(--color-scale);
+}
+
+.flavor-feel {
+  font-size: 0.9rem;
+  color: #b0bec5;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.flavor-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.flavor-genre-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: #90a4ae;
+  background: rgba(58, 107, 196, 0.12);
+}
+
+.flavor-tip {
+  font-size: 0.82rem;
+  font-style: italic;
+  color: #607d8b;
+  margin: 0;
+  padding-left: 0.3rem;
+  border-left: 2px solid var(--color-border);
+  line-height: 1.5;
+}
+
+/* ── Related scales ─────────────────────────────────────────── */
+.related-scales {
+  font-size: 0.9rem;
+  color: #b0bec5;
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+#related-scales-list {
+  color: #78909c;
+  font-size: 0.85rem;
+}
+
+/* ── Scale settings panel ───────────────────────────────────── */
+#scale-settings {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.5rem;
+}
+
+.scale-settings-summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #78909c;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  user-select: none;
+  list-style: none;
+}
+
+.scale-settings-summary::-webkit-details-marker { display: none; }
+.scale-settings-summary::before { content: '\25B6  '; font-size: 0.7em; }
+#scale-settings[open] .scale-settings-summary::before { content: '\25BC  '; }
+
+.scale-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem 1rem;
+  padding: 0.75rem 0 0.25rem;
+  text-align: left;
+}
+
+.scale-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9rem;
+  color: #b0bec5;
+  cursor: pointer;
+}
+
+.scale-checkbox-label input[type="checkbox"] {
+  accent-color: var(--color-root);
+  cursor: pointer;
+}
+
+#chord-label {
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+/* ── Randomize button ───────────────────────────────────────── */
+.randomize-btn {
+  margin-top: 0.5rem;
+  align-self: center;
+  padding: 0.55rem 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-root);
+  color: #1a1a2e;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.randomize-btn:hover  { filter: brightness(1.15); }
+.randomize-btn:active { filter: brightness(0.9); }
+
+/* ── Keyboard section ───────────────────────────────────────── */
+.keyboard-section {
+  width: 100%;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.keyboard-container svg {
+  display: block;
+}
+
+/* ── SVG key state classes ──────────────────────────────────── */
+
+/* White keys — base */
+.key.white { fill: var(--white-key-bg); stroke: #888; stroke-width: 1; }
+
+/* Black keys — base */
+.key.black { fill: var(--black-key-bg); stroke: #333; stroke-width: 1; }
+
+/* Scale highlight */
+.key.white.is-scale { fill: color-mix(in srgb, var(--color-scale) 30%, var(--white-key-bg)); }
+.key.black.is-scale { fill: color-mix(in srgb, var(--color-scale) 55%, var(--black-key-bg)); }
+
+/* Root — always overrides scale tint */
+.key.is-root { fill: var(--color-root) !important; }
+
+/* Pressed state — always brightest */
+.key.is-pressed { fill: var(--color-pressed) !important; filter: drop-shadow(0 0 6px #fffde7cc); }
+
+/* ── MIDI status bar ────────────────────────────────────────── */
+.midi-status-bar {
+  background: var(--color-panel-bg);
+  border-top: 1px solid var(--color-border);
+  padding: 0.4rem 1.5rem;
+  font-size: 0.8rem;
+  color: #78909c;
+}

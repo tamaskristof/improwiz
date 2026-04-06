@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ImproWiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Unsupported-browser fallback (hidden by default) -->
+  <div id="unsupported-banner" class="unsupported-banner" hidden>
+    <p>Your browser does not support the WebMIDI API. Please use Chrome or Edge.</p>
+  </div>
+
+  <header class="app-header">
+    <h1>ImproWiz</h1>
+  </header>
+
+  <main class="app-main">
+
+    <!-- Info panel -->
+    <section class="info-panel" aria-label="Current key and mode">
+      <div class="key-mode-display">
+        <span id="root-name">—</span>
+        <span id="mode-name">—</span>
+      </div>
+      <div class="mode-alias" id="mode-alias" hidden></div>
+      <div class="scale-display">
+        <span class="label">Scale</span>
+        <div class="scale-grid-area">
+          <div class="scale-notes-row" id="scale-notes-list"></div>
+          <div class="scale-steps-row" id="scale-steps-list"></div>
+        </div>
+      </div>
+      <div class="chord-info">
+        <span class="label">Chord:</span>
+        <span id="chord-label">—</span>
+        <span id="chord-notes">—</span>
+      </div>
+      <div class="scale-flavor" id="scale-flavor">
+        <div class="flavor-brightness" id="flavor-brightness" data-brightness="4" aria-label="Brightness">
+          <span class="flavor-brightness-label">Brightness</span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+        </div>
+        <p class="flavor-feel" id="flavor-feel"></p>
+        <div class="flavor-genres" id="flavor-genres"></div>
+        <p class="flavor-tip" id="flavor-tip"></p>
+      </div>
+      <div class="related-scales" id="related-scales-section" hidden>
+        <span class="label">Also:</span>
+        <span id="related-scales-list"></span>
+      </div>
+      <details id="scale-settings">
+        <summary class="scale-settings-summary">Scale Settings</summary>
+        <div class="scale-checkboxes" id="scale-checkboxes"></div>
+      </details>
+      <button id="randomize-btn" class="randomize-btn" type="button">Randomize</button>
+    </section>
+
+    <!-- SVG piano keyboard -->
+    <section class="keyboard-section" aria-label="Piano keyboard">
+      <div id="keyboard-container" class="keyboard-container"></div>
+    </section>
+
+  </main>
+
+  <!-- MIDI status bar -->
+  <footer class="midi-status-bar">
+    <span id="midi-status">No MIDI device detected</span>
+  </footer>
+
+  <script src="src/scales.js"></script>
+  <script src="src/keyboard.js"></script>
+  <script src="src/midi.js"></script>
+  <script src="src/sound.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
