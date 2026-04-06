@@ -167,7 +167,7 @@ micBtn.addEventListener('click', () => {
   } else {
     micBtn.classList.add('is-active');  // instant visual feedback while permission prompt shows
     micController = initMic(
-      (midi) => { setPressedState(midi, true);  playNote(midi); },
+      (midi) =>   setPressedState(midi, true),
       (midi) =>   setPressedState(midi, false),
       updateMicStatus,
     );
