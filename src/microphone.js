@@ -31,10 +31,14 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
   let stableNote     = null;   // candidate accumulating stability frames
   let stableCount    = 0;
   let lastActiveTime = 0;      // performance.now() of last above-threshold frame
+  let onsetTime      = 0;      // performance.now() of most recent silence→sound transition
+  let wasActive      = false;  // whether the previous frame was above threshold
 
   const FFT_SIZE            = 2048;
   const AMPLITUDE_THRESHOLD = 0.01;   // RMS below this → silence
-  const STABILITY_FRAMES    = 2;      // consecutive matching frames before note-on
+  const STABILITY_FRAMES    = 2;      // consecutive frames required after attack settles
+  const STABILITY_FRAMES_ONSET = 4;   // stricter requirement during attack transient
+  const ATTACK_HOLDOFF_MS   = 60;     // duration of the stricter onset window (ms)
   const NOTE_HOLD_MS        = 120;    // hold note this long after signal drops (decay grace)
   const NSDF_THRESHOLD      = 0.90;   // McLeod k: first peak ≥ k × globalMax
 
@@ -89,9 +93,13 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
       }
       stableNote  = null;
       stableCount = 0;
+      wasActive   = false;
       return;
     }
 
+    // Detect silence→sound transition to start the attack holdoff window
+    if (!wasActive) onsetTime = now;
+    wasActive      = true;
     lastActiveTime = now;
 
     const freq = detectPitch(timeDomain, audioCtx.sampleRate);
@@ -108,7 +116,12 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
       stableCount = 1;
     }
 
-    if (stableCount >= STABILITY_FRAMES && midi !== lastNote) {
+    // During the attack holdoff window use stricter stability to skip the transient
+    const requiredFrames = (now - onsetTime < ATTACK_HOLDOFF_MS)
+      ? STABILITY_FRAMES_ONSET
+      : STABILITY_FRAMES;
+
+    if (stableCount >= requiredFrames && midi !== lastNote) {
       if (lastNote !== null) onNoteOff(lastNote);
       onNoteOn(midi, 80);
       lastNote = midi;
