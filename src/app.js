@@ -10,6 +10,7 @@ const relatedSection    = document.getElementById('related-scales-section');
 const chordLabelEl      = document.getElementById('chord-label');
 const chordNotesEl      = document.getElementById('chord-notes');
 const midiStatusEl      = document.getElementById('midi-status');
+const micBtn            = document.getElementById('mic-btn');
 const randomizeBtn      = document.getElementById('randomize-btn');
 const keyboardCont      = document.getElementById('keyboard-container');
 const scaleCheckboxesEl = document.getElementById('scale-checkboxes');
@@ -115,11 +116,31 @@ function randomize() {
   applyKeyHighlights(scaleNotes, rootPitchClass);
 }
 
-// ── MIDI status helper ────────────────────────────────────────
+// ── Status bar helpers ───────────────────────────────────────
+let lastMidiStatus  = 'No MIDI device detected';
+let micController   = null;
+
 function updateMidiStatus(deviceName) {
-  midiStatusEl.textContent = deviceName
-    ? `MIDI: ${deviceName}`
-    : 'No MIDI device detected';
+  lastMidiStatus = deviceName ? `MIDI: ${deviceName}` : 'No MIDI device detected';
+  // Don't overwrite the status bar while mic is active
+  if (!micController) midiStatusEl.textContent = lastMidiStatus;
+}
+
+function updateMicStatus(status) {
+  if (status === 'Mic: listening') {
+    midiStatusEl.textContent = status;
+    micBtn.classList.add('is-active');
+  } else if (status === null) {
+    // Clean stop — restore MIDI status
+    midiStatusEl.textContent = lastMidiStatus;
+    micBtn.classList.remove('is-active');
+    micController = null;
+  } else {
+    // Error (access denied, unavailable, etc.)
+    midiStatusEl.textContent = status;
+    micBtn.classList.remove('is-active');
+    micController = null;
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -139,3 +160,16 @@ buildScaleCheckboxes();
 randomize();
 
 randomizeBtn.addEventListener('click', randomize);
+
+micBtn.addEventListener('click', () => {
+  if (micController) {
+    micController.stop();  // calls updateMicStatus(null) → clears is-active
+  } else {
+    micBtn.classList.add('is-active');  // instant visual feedback while permission prompt shows
+    micController = initMic(
+      (midi) => { setPressedState(midi, true);  playNote(midi); },
+      (midi) =>   setPressedState(midi, false),
+      updateMicStatus,
+    );
+  }
+});
