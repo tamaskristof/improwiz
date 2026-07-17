@@ -26,6 +26,7 @@
         <span id="mode-name">—</span>
       </div>
       <div class="mode-alias" id="mode-alias" hidden></div>
+      <div class="mode-derivation" id="mode-derivation" hidden></div>
       <div class="scale-display">
         <span class="label">Scale</span>
         <div class="scale-grid-area">
@@ -48,6 +49,10 @@
           <span class="flavor-pip"></span>
           <span class="flavor-pip"></span>
           <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
+          <span class="flavor-pip"></span>
         </div>
         <p class="flavor-feel" id="flavor-feel"></p>
         <div class="flavor-genres" id="flavor-genres"></div>
@@ -57,10 +62,24 @@
         <span class="label">Also:</span>
         <span id="related-scales-list"></span>
       </div>
+      <div class="sibling-scales" id="sibling-scales-section" hidden>
+        <span class="label">Siblings:</span>
+        <div class="sibling-chips" id="sibling-chips-list"></div>
+      </div>
       <details id="scale-settings">
         <summary class="scale-settings-summary">Scale Settings</summary>
         <div class="scale-checkboxes" id="scale-checkboxes"></div>
       </details>
+      <div class="run-score" id="run-score" hidden>
+        <div class="run-score-head">
+          <span class="label" id="run-score-heading">This run</span>
+          <span class="run-score-live-dot" aria-hidden="true"></span>
+          <span id="run-score-scale"></span>
+          <span id="run-score-grade" class="run-score-grade"></span>
+        </div>
+        <div class="run-score-accuracy" id="run-score-accuracy"></div>
+        <p class="run-score-detail" id="run-score-detail"></p>
+      </div>
       <button id="randomize-btn" class="randomize-btn" type="button">Randomize</button>
     </section>
 
@@ -78,6 +97,7 @@
   </footer>
 
   <script src="src/scales.js"></script>
+  <script src="src/tracker.js"></script>
   <script src="src/keyboard.js"></script>
   <script src="src/midi.js"></script>
   <script src="src/sound.js"></script>

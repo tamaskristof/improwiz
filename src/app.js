@@ -19,12 +19,21 @@ const flavorGenresEl    = document.getElementById('flavor-genres');
 const flavorTipEl       = document.getElementById('flavor-tip');
 const flavorBrightnessEl = document.getElementById('flavor-brightness');
 const modeAliasEl        = document.getElementById('mode-alias');
+const modeDerivationEl   = document.getElementById('mode-derivation');
+const siblingSection     = document.getElementById('sibling-scales-section');
+const siblingChipsEl     = document.getElementById('sibling-chips-list');
+const runScoreEl         = document.getElementById('run-score');
+const runScoreHeadingEl  = document.getElementById('run-score-heading');
+const runScoreScaleEl    = document.getElementById('run-score-scale');
+const runScoreGradeEl    = document.getElementById('run-score-grade');
+const runScoreAccuracyEl = document.getElementById('run-score-accuracy');
+const runScoreDetailEl   = document.getElementById('run-score-detail');
 
 // ── Scale settings ───────────────────────────────────────────
 const LS_KEY = 'improwiz_enabled_scales';
 
 function getEnabledModes() {
-  const cbs = scaleCheckboxesEl.querySelectorAll('input[type="checkbox"]');
+  const cbs = scaleCheckboxesEl.querySelectorAll('.scale-family-modes input[type="checkbox"]');
   return [...cbs].filter(cb => cb.checked).map(cb => cb.value);
 }
 
@@ -37,36 +46,114 @@ function loadEnabledScales() {
     const saved = JSON.parse(localStorage.getItem(LS_KEY));
     if (Array.isArray(saved) && saved.length > 0) return saved;
   } catch (_) {}
-  return Object.keys(SCALE_DEFS);
+  return DEFAULT_ENABLED_SCALES;
 }
 
 function buildScaleCheckboxes() {
   const enabled = loadEnabledScales();
-  scaleCheckboxesEl.innerHTML = Object.keys(SCALE_DEFS).map(name => `
-    <label class="scale-checkbox-label">
-      <input type="checkbox" value="${name}"${enabled.includes(name) ? ' checked' : ''} />
-      ${name}
-    </label>`).join('');
+  scaleCheckboxesEl.innerHTML = Object.entries(SCALE_FAMILIES).map(([family, names]) => `
+    <div class="scale-family-group">
+      <label class="scale-family-label">
+        <input type="checkbox" class="scale-family-toggle" data-family="${family}" />
+        ${family}
+      </label>
+      <div class="scale-family-modes">
+        ${names.map(name => `
+          <label class="scale-checkbox-label">
+            <input type="checkbox" value="${name}"${enabled.includes(name) ? ' checked' : ''} />
+            ${name}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
 
   scaleCheckboxesEl.addEventListener('change', (e) => {
+    if (e.target.classList.contains('scale-family-toggle')) {
+      const group = e.target.closest('.scale-family-group');
+      const modeInputs = [...group.querySelectorAll('.scale-family-modes input')];
+      modeInputs.forEach(cb => { cb.checked = e.target.checked; });
+      const checked = [...scaleCheckboxesEl.querySelectorAll('.scale-family-modes input:checked')];
+      if (checked.length === 0) {
+        e.target.checked = true;
+        modeInputs.forEach(cb => { cb.checked = true; });
+      }
+      applyCheckboxGuard();
+      saveEnabledScales();
+      return;
+    }
     if (e.target.type !== 'checkbox') return;
-    const checked = [...scaleCheckboxesEl.querySelectorAll('input:checked')];
+    const checked = [...scaleCheckboxesEl.querySelectorAll('.scale-family-modes input:checked')];
     if (checked.length === 0) { e.target.checked = true; return; }
-    scaleCheckboxesEl.querySelectorAll('input').forEach(cb => {
-      cb.disabled = checked.length === 1 && cb.checked;
-    });
+    applyCheckboxGuard();
     saveEnabledScales();
   });
 
-  // Apply initial guard state
-  const checked = [...scaleCheckboxesEl.querySelectorAll('input:checked')];
-  scaleCheckboxesEl.querySelectorAll('input').forEach(cb => {
+  applyCheckboxGuard();
+}
+
+// At least one scale must stay enabled; disable the last checked box so it can't be
+// unchecked, and keep each family's header toggle in sync with its members.
+function applyCheckboxGuard() {
+  const checked = [...scaleCheckboxesEl.querySelectorAll('.scale-family-modes input:checked')];
+  scaleCheckboxesEl.querySelectorAll('.scale-family-modes input').forEach(cb => {
     cb.disabled = checked.length === 1 && cb.checked;
   });
+  scaleCheckboxesEl.querySelectorAll('.scale-family-group').forEach(group => {
+    const modeInputs = [...group.querySelectorAll('.scale-family-modes input')];
+    const familyToggle = group.querySelector('.scale-family-toggle');
+    const checkedCount = modeInputs.filter(cb => cb.checked).length;
+    familyToggle.checked = checkedCount === modeInputs.length;
+    familyToggle.indeterminate = checkedCount > 0 && checkedCount < modeInputs.length;
+  });
+}
+
+// ── Run score card ───────────────────────────────────────────
+// The card tracks the run in progress. Between a Randomize press and the first note
+// of the new run there's nothing live to show, so it falls back to the run that just
+// ended — otherwise hitting Randomize would wipe the grade you just earned.
+let currentRunLabel = null;
+let lastRunSummary  = null;
+let lastRunLabel    = null;
+
+function renderScoreCard() {
+  const live = getRunScore();
+  if (live)           return paintScoreCard(live, currentRunLabel, 'This run', true);
+  if (lastRunSummary) return paintScoreCard(lastRunSummary, lastRunLabel, 'Last run', false);
+  runScoreEl.hidden = true;
+}
+
+function paintScoreCard(summary, label, heading, isLive) {
+  runScoreHeadingEl.textContent = heading;
+  runScoreScaleEl.textContent   = label ?? '';
+  runScoreGradeEl.textContent   = summary.grade ?? '';
+  runScoreAccuracyEl.innerHTML  =
+    `<span class="run-score-pct">${Math.round(summary.accuracy * 100)}%</span> in scale`;
+
+  // Spell out what moved the grade, so it doesn't read as an arbitrary letter.
+  const detail = [`${summary.strayNotes} stray / ${summary.totalNotes} played`];
+  if (summary.passingNotes > 0) {
+    detail.push(`${summary.passingNotes} passing tone${summary.passingNotes === 1 ? '' : 's'}`);
+  }
+  detail.push(`${summary.degreesUsed} of ${summary.scaleSize} degrees`);
+  if (summary.chordToneRatio !== null) {
+    detail.push(`${Math.round(summary.chordToneRatio * 100)}% chord tones`);
+  }
+  if (!summary.graded) {
+    detail.push(`${summary.notesToGrade} more note${summary.notesToGrade === 1 ? '' : 's'} for a grade`);
+  }
+  runScoreDetailEl.textContent = detail.join(' · ');
+
+  runScoreEl.classList.toggle('is-live', isLive);
+  runScoreEl.hidden = false;
 }
 
 // ── Randomize ─────────────────────────────────────────────────
 function randomize() {
+  // Randomize is the run boundary: bank what was just played, then start fresh.
+  // Only keep a graded run — a stray note or two shouldn't leave a bogus letter up.
+  const finished  = endRun();
+  lastRunSummary  = finished && finished.graded ? finished : null;
+  lastRunLabel    = currentRunLabel;
+
   const { rootPitchClass, rootName, modeName, scaleNotes, triads } =
     randomKeyAndMode(getEnabledModes());
   const chord = pickRandomChord(triads, rootPitchClass);
@@ -76,14 +163,39 @@ function randomize() {
 
   // Notes in scale-degree order (from root)
   const intervals = SCALE_DEFS[modeName];
+  const derivation = getDerivation(modeName);
+  const characteristicIndices = new Set(derivation ? derivation.degreeIndices : []);
+  const characteristicNotes = new Set(
+    [...characteristicIndices].map(i => (rootPitchClass + intervals[i]) % 12));
+
   scaleNotesEl.innerHTML = intervals
-    .map(i => `<span class="scale-note-item">${ROOT_NAMES[(rootPitchClass + i) % 12]}</span>`)
+    .map((i, idx) => `<span class="scale-note-item${characteristicIndices.has(idx) ? ' is-characteristic' : ''}">${ROOT_NAMES[(rootPitchClass + i) % 12]}</span>`)
     .join('');
 
   // Step sizes between notes
   scaleStepsEl.innerHTML = getStepSizes(intervals)
     .map(s => `<span class="scale-step-item">${s}</span>`)
     .join('');
+
+  // "= Major with #4" — hidden for the anchors (Ionian/Aeolian), which already show an alias.
+  const derivationText = formatDerivation(derivation);
+  if (derivationText) {
+    modeDerivationEl.textContent = `= ${derivationText}`;
+    modeDerivationEl.hidden = false;
+  } else {
+    modeDerivationEl.hidden = true;
+  }
+
+  // Siblings: same root, one degree moved
+  const siblings = getSiblings(rootPitchClass, modeName);
+  if (siblings.length > 0) {
+    siblingChipsEl.innerHTML = siblings
+      .map(s => `<span class="sibling-chip">${s.rootName} ${s.modeName} <span class="sibling-chip-change">${s.noteChange}</span></span>`)
+      .join('');
+    siblingSection.hidden = false;
+  } else {
+    siblingSection.hidden = true;
+  }
 
   // Scales sharing the same note set
   const related = findRelatedScales(rootPitchClass, modeName);
@@ -104,7 +216,7 @@ function randomize() {
     flavorGenresEl.innerHTML = info.genres
       .map(g => `<span class="flavor-genre-tag">${g}</span>`).join('');
     flavorTipEl.textContent = info.tip;
-    flavorBrightnessEl.setAttribute('data-brightness', info.brightness);
+    flavorBrightnessEl.setAttribute('data-brightness', getBrightness(modeName));
     if (info.alias) {
       modeAliasEl.textContent = info.alias;
       modeAliasEl.hidden = false;
@@ -113,7 +225,11 @@ function randomize() {
     }
   }
 
-  applyKeyHighlights(scaleNotes, rootPitchClass);
+  applyKeyHighlights(scaleNotes, rootPitchClass, characteristicNotes);
+
+  currentRunLabel = `${rootName} ${modeName}`;
+  startRun({ scaleNotes, rootPitchClass, chordNotes: chord.notes });
+  renderScoreCard();
 }
 
 // ── Status bar helpers ───────────────────────────────────────
@@ -150,11 +266,16 @@ buildKeyboard(
   (midi) => { setPressedState(midi, false); },
 );
 
+// Only MIDI feeds the tracker — mouse clicks and mic input light keys but don't score.
 initMidi(
-  (midi) => { setPressedState(midi, true);  playNote(midi); },
-  (midi) =>   setPressedState(midi, false),
-  (name) =>   updateMidiStatus(name),
+  (midi, velocity) => { setPressedState(midi, true);  recordNoteOn(midi, velocity); playNote(midi); renderScoreCard(); },
+  (midi) =>           { setPressedState(midi, false); recordNoteOff(midi);          renderScoreCard(); },
+  (name) =>             updateMidiStatus(name),
 );
+
+// Note events cover most of the card's movement, but a note being *held* keeps changing
+// the duration-weighted score with no event to hang off — so tick while keys are down.
+setInterval(() => { if (hasHeldNotes()) renderScoreCard(); }, 250);
 
 buildScaleCheckboxes();
 randomize();

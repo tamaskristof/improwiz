@@ -110,17 +110,18 @@ function buildKeyboard(containerEl, onNoteOn, onNoteOff) {
 }
 
 /**
- * Clears scale/root/chord highlights and reapplies them for the current key.
- * @param {Set<number>} scaleNotes   pitch classes in the scale
+ * Clears scale/root/characteristic highlights and reapplies them for the current key.
+ * @param {Set<number>} scaleNotes           pitch classes in the scale
  * @param {number}      rootPitchClass
- * @param {number[]}    chordNotes   pitch classes of the suggested chord
+ * @param {Set<number>} [characteristicNotes] pitch classes that differ from the closest known scale
  */
-function applyKeyHighlights(scaleNotes, rootPitchClass) {
+function applyKeyHighlights(scaleNotes, rootPitchClass, characteristicNotes = new Set()) {
   for (const [midi, el] of keyElements) {
-    el.classList.remove('is-scale', 'is-root');
+    el.classList.remove('is-scale', 'is-root', 'is-characteristic');
     const pc = midi % 12;
-    if (scaleNotes.has(pc))    el.classList.add('is-scale');
-    if (pc === rootPitchClass) el.classList.add('is-root');
+    if (scaleNotes.has(pc))          el.classList.add('is-scale');
+    if (characteristicNotes.has(pc)) el.classList.add('is-characteristic');
+    if (pc === rootPitchClass)       el.classList.add('is-root');
   }
 }
 

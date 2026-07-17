@@ -4,9 +4,10 @@
   --color-panel-bg:  #16213e;
   --color-border:    #0f3460;
 
-  --color-scale:     #3a6bc4;      /* subtle blue tint — scale notes */
-  --color-root:      #e07c24;      /* orange/amber — root note */
-  --color-pressed:   #fffde7;      /* bright near-white — physically pressed */
+  --color-scale:          #3a6bc4;  /* subtle blue tint — scale notes */
+  --color-root:           #e07c24;  /* orange/amber — root note */
+  --color-pressed:        #fffde7;  /* bright near-white — physically pressed */
+  --color-characteristic: #b06ad9;  /* violet — the note that differs from the closest known scale */
 
   --white-key-bg:    #f0ece2;
   --black-key-bg:    #1e1e1e;
@@ -98,7 +99,8 @@ body {
   flex-wrap: wrap;
 }
 
-.mode-alias {
+.mode-alias,
+.mode-derivation {
   font-size: 0.85rem;
   color: #78909c;
   letter-spacing: 0.04em;
@@ -128,6 +130,11 @@ body {
   width: 2.4em;
   text-align: center;
   color: #b0bec5;
+}
+
+.scale-note-item.is-characteristic {
+  color: var(--color-characteristic);
+  font-weight: 700;
 }
 
 .scale-steps-row {
@@ -186,7 +193,22 @@ body {
   transition: background 0.25s;
 }
 
-/* Fill pips up to the brightness level (1–7) */
+/* Fill pips up to the brightness level (1–11). +1 offset because
+   .flavor-brightness-label is the first child of the container. */
+[data-brightness="1"] .flavor-pip:nth-child(-n+2),
+[data-brightness="2"] .flavor-pip:nth-child(-n+3),
+[data-brightness="3"] .flavor-pip:nth-child(-n+4),
+[data-brightness="4"] .flavor-pip:nth-child(-n+5),
+[data-brightness="5"] .flavor-pip:nth-child(-n+6),
+[data-brightness="6"] .flavor-pip:nth-child(-n+7),
+[data-brightness="7"] .flavor-pip:nth-child(-n+8),
+[data-brightness="8"] .flavor-pip:nth-child(-n+9),
+[data-brightness="9"] .flavor-pip:nth-child(-n+10),
+[data-brightness="10"] .flavor-pip:nth-child(-n+11),
+[data-brightness="11"] .flavor-pip:nth-child(-n+12) {
+  background: var(--color-root); /* orange — bright end (8–11) */
+}
+/* Override: amber for the mid band (5–7) */
 [data-brightness="1"] .flavor-pip:nth-child(-n+2),
 [data-brightness="2"] .flavor-pip:nth-child(-n+3),
 [data-brightness="3"] .flavor-pip:nth-child(-n+4),
@@ -194,20 +216,13 @@ body {
 [data-brightness="5"] .flavor-pip:nth-child(-n+6),
 [data-brightness="6"] .flavor-pip:nth-child(-n+7),
 [data-brightness="7"] .flavor-pip:nth-child(-n+8) {
-  background: var(--color-root); /* orange — bright end */
+  background: #c4a040;
 }
-/* Override: amber for neutral levels 1–5 */
+/* Override: blue for the dark band (1–4) */
 [data-brightness="1"] .flavor-pip:nth-child(-n+2),
 [data-brightness="2"] .flavor-pip:nth-child(-n+3),
 [data-brightness="3"] .flavor-pip:nth-child(-n+4),
-[data-brightness="4"] .flavor-pip:nth-child(-n+5),
-[data-brightness="5"] .flavor-pip:nth-child(-n+6) {
-  background: #c4a040;
-}
-/* Override: blue for dark levels 1–3 */
-[data-brightness="1"] .flavor-pip:nth-child(-n+2),
-[data-brightness="2"] .flavor-pip:nth-child(-n+3),
-[data-brightness="3"] .flavor-pip:nth-child(-n+4) {
+[data-brightness="4"] .flavor-pip:nth-child(-n+5) {
   background: var(--color-scale);
 }
 
@@ -260,6 +275,40 @@ body {
   font-size: 0.85rem;
 }
 
+/* ── Sibling scales ──────────────────────────────────────────── */
+.sibling-scales {
+  font-size: 0.9rem;
+  color: #b0bec5;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+.sibling-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sibling-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: #90a4ae;
+  background: rgba(176, 106, 217, 0.12);
+}
+
+.sibling-chip-change {
+  color: var(--color-characteristic);
+  font-weight: 700;
+  margin-left: 0.3em;
+}
+
 /* ── Scale settings panel ───────────────────────────────────── */
 #scale-settings {
   border-top: 1px solid var(--color-border);
@@ -282,11 +331,39 @@ body {
 #scale-settings[open] .scale-settings-summary::before { content: '\25BC  '; }
 
 .scale-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 0 0.25rem;
+  text-align: left;
+}
+
+.scale-family-group {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.5rem;
+}
+
+.scale-family-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cfd8dc;
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+}
+
+.scale-family-label input[type="checkbox"] {
+  accent-color: var(--color-root);
+  cursor: pointer;
+}
+
+.scale-family-modes {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.4rem 1rem;
-  padding: 0.75rem 0 0.25rem;
-  text-align: left;
+  padding-left: 1.4rem;
 }
 
 .scale-checkbox-label {
@@ -306,6 +383,77 @@ body {
 #chord-label {
   font-weight: 700;
   color: #e0e0e0;
+}
+
+/* ── Run score card ─────────────────────────────────────────── */
+.run-score {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+}
+
+.run-score-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.run-score-head .label {
+  color: #78909c;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+#run-score-scale {
+  font-size: 0.9rem;
+  color: #b0bec5;
+  font-weight: 600;
+}
+
+/* Live indicator — only while the current run is being played */
+.run-score-live-dot {
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-root);
+  animation: mic-pulse 1.6s ease-in-out infinite;
+}
+
+.run-score.is-live .run-score-live-dot { display: inline-block; }
+
+.run-score-grade {
+  margin-left: auto;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-root);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-score-accuracy {
+  font-size: 0.9rem;
+  color: #90a4ae;
+}
+
+.run-score-pct {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e0e0e0;
+  margin-right: 0.15em;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-score-detail {
+  font-size: 0.78rem;
+  color: #607d8b;
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ── Randomize button ───────────────────────────────────────── */
@@ -350,6 +498,12 @@ body {
 /* Scale highlight */
 .key.white.is-scale { fill: color-mix(in srgb, var(--color-scale) 30%, var(--white-key-bg)); }
 .key.black.is-scale { fill: color-mix(in srgb, var(--color-scale) 55%, var(--black-key-bg)); }
+
+/* Characteristic note — the degree that differs from the closest known scale.
+   Needs the .white/.black qualifier to match .is-scale's (0,3,0) specificity,
+   and must come after .is-scale so it wins on a note that's both. */
+.key.white.is-characteristic { fill: color-mix(in srgb, var(--color-characteristic) 45%, var(--white-key-bg)); }
+.key.black.is-characteristic { fill: color-mix(in srgb, var(--color-characteristic) 65%, var(--black-key-bg)); }
 
 /* Root — always overrides scale tint */
 .key.is-root { fill: var(--color-root) !important; }
