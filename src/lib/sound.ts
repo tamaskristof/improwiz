@@ -1,17 +1,22 @@
-// src/sound.js — Web Audio API piano synth (no external files)
+// src/lib/sound.ts — Web Audio API piano synth (no external files)
 
-let audioCtx = null;
+import type { MidiNote } from './types';
 
-function getAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext {
+  if (!audioCtx) {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new Ctor();
+  }
   return audioCtx;
 }
 
-function midiToFreq(midi) {
+function midiToFreq(midi: MidiNote): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-function playNote(midi) {
+export function playNote(midi: MidiNote): void {
   const ctx = getAudioCtx();
   if (ctx.state === 'suspended') ctx.resume();
 

@@ -1,8 +1,14 @@
-// src/microphone.js — microphone pitch detection (McLeod Pitch Method)
+// src/lib/microphone.ts — microphone pitch detection (McLeod Pitch Method)
+
+import type { MidiNote, NoteOffHandler, NoteOnHandler, StatusHandler } from './types';
+
+export interface MicController {
+  stop: () => void;
+}
 
 /**
  * Initialises microphone input and wires up note callbacks.
- * Interface mirrors midi.js: same onNoteOn / onNoteOff / onStatusChange signature.
+ * Interface mirrors midi.ts: same onNoteOn / onNoteOff / onStatusChange signature.
  *
  * Pitch detection uses the McLeod Pitch Method (MPM):
  *   NSDF(τ) = 2·r(τ) / m(τ)
@@ -12,27 +18,28 @@
  * The first local maximum ≥ 90 % of the global NSDF max is taken as the fundamental
  * period, making octave errors much less likely than with raw autocorrelation.
  *
- * @param {(midi: number, velocity: number) => void} onNoteOn
- * @param {(midi: number) => void}                   onNoteOff
- * @param {(status: string | null) => void}          onStatusChange  — null on clean stop
- * @returns {{ stop: () => void }}
+ * @param onStatusChange  null on clean stop
  */
-function initMic(onNoteOn, onNoteOff, onStatusChange) {
+export function initMic(
+  onNoteOn: NoteOnHandler,
+  onNoteOff: NoteOffHandler,
+  onStatusChange: StatusHandler,
+): MicController {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     onStatusChange('Mic: not supported');
     return { stop: () => {} };
   }
 
-  let stream         = null;
-  let audioCtx       = null;
-  let analyser       = null;
-  let rafId          = null;
-  let lastNote       = null;   // last midi number passed to onNoteOn, or null
-  let stableNote     = null;   // candidate accumulating stability frames
-  let stableCount    = 0;
-  let lastActiveTime = 0;      // performance.now() of last above-threshold frame
-  let onsetTime      = 0;      // performance.now() of most recent silence→sound transition
-  let wasActive      = false;  // whether the previous frame was above threshold
+  let stream: MediaStream | null       = null;
+  let audioCtx: AudioContext | null    = null;
+  let analyser: AnalyserNode | null    = null;
+  let rafId: number | null             = null;
+  let lastNote: MidiNote | null        = null; // last midi number passed to onNoteOn, or null
+  let stableNote: MidiNote | null      = null; // candidate accumulating stability frames
+  let stableCount                      = 0;
+  let lastActiveTime                   = 0;    // performance.now() of last above-threshold frame
+  let onsetTime                        = 0;    // performance.now() of most recent silence→sound transition
+  let wasActive                        = false; // whether the previous frame was above threshold
 
   const FFT_SIZE            = 2048;
   const AMPLITUDE_THRESHOLD = 0.01;   // RMS below this → silence
@@ -47,7 +54,7 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
 
   // NSDF buffer and lag bounds allocated after AudioContext is created
   // (sampleRate may be 44100, 48000, etc.)
-  let nsdf   = null;
+  let nsdf: Float32Array | null = null;
   let minLag = 0;
   let maxLag = 0;
 
@@ -67,16 +74,16 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
       onStatusChange('Mic: listening');
       loop();
     })
-    .catch(err => {
+    .catch((err: DOMException) => {
       const msg = err.name === 'NotAllowedError'
         ? 'Mic: access denied'
         : 'Mic: unavailable';
       onStatusChange(msg);
     });
 
-  function loop() {
+  function loop(): void {
     rafId = requestAnimationFrame(loop);
-    analyser.getFloatTimeDomainData(timeDomain);
+    analyser!.getFloatTimeDomainData(timeDomain);
 
     // RMS silence check
     let rmsSum = 0;
@@ -102,7 +109,7 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
     wasActive      = true;
     lastActiveTime = now;
 
-    const freq = detectPitch(timeDomain, audioCtx.sampleRate);
+    const freq = detectPitch(timeDomain, audioCtx!.sampleRate);
     if (freq === -1) return;
 
     const midi = Math.round(69 + 12 * Math.log2(freq / 440));
@@ -143,7 +150,7 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
    *
    * Returns detected frequency in Hz, or -1 if no confident pitch found.
    */
-  function detectPitch(buf, sampleRate) {
+  function detectPitch(buf: Float32Array, sampleRate: number): number {
     const SIZE = buf.length;
 
     // Fill NSDF buffer for every lag in the keyboard range
@@ -156,25 +163,25 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
         r += xi * xiLag;
         m += xi * xi + xiLag * xiLag;
       }
-      nsdf[lag] = m > 0 ? (2 * r) / m : 0;
+      nsdf![lag] = m > 0 ? (2 * r) / m : 0;
     }
 
     // Global NSDF maximum — confidence gate
     let globalMax = -Infinity;
     for (let lag = minLag; lag <= maxLag; lag++) {
-      if (nsdf[lag] > globalMax) globalMax = nsdf[lag];
+      if (nsdf![lag] > globalMax) globalMax = nsdf![lag];
     }
     if (globalMax < 0.3) return -1;  // no confident periodicity in this frame
 
     // First local peak ≥ NSDF_THRESHOLD × globalMax → fundamental period
     for (let lag = minLag + 1; lag < maxLag; lag++) {
       if (
-        nsdf[lag] >  nsdf[lag - 1] &&
-        nsdf[lag] >= nsdf[lag + 1] &&
-        nsdf[lag] >= NSDF_THRESHOLD * globalMax
+        nsdf![lag] >  nsdf![lag - 1] &&
+        nsdf![lag] >= nsdf![lag + 1] &&
+        nsdf![lag] >= NSDF_THRESHOLD * globalMax
       ) {
         // Parabolic interpolation for sub-sample period accuracy
-        const a = nsdf[lag - 1], b = nsdf[lag], c = nsdf[lag + 1];
+        const a = nsdf![lag - 1], b = nsdf![lag], c = nsdf![lag + 1];
         const denom = 2 * (2 * b - a - c);
         const refinedLag = Math.abs(denom) > 1e-10 ? lag + (c - a) / denom : lag;
         return sampleRate / refinedLag;
@@ -184,7 +191,7 @@ function initMic(onNoteOn, onNoteOff, onStatusChange) {
     return -1;
   }
 
-  function stop() {
+  function stop(): void {
     if (rafId    !== null) { cancelAnimationFrame(rafId); rafId = null; }
     if (lastNote !== null) { onNoteOff(lastNote); lastNote = null; }
     if (stream   !== null) { stream.getTracks().forEach(t => t.stop()); stream = null; }

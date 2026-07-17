@@ -1,7 +1,20 @@
-// src/scales.js — Scale/mode data and logic
+// src/lib/scales.ts — Scale/mode data and logic
+
+import type {
+  Chord,
+  Derivation,
+  DegreeMove,
+  KeyAndMode,
+  PitchClass,
+  RelatedScale,
+  ScaleInfo,
+  ScaleName,
+  Sibling,
+  Triad,
+} from './types';
 
 /** Interval arrays (semitones from root) for each supported mode/scale. */
-const SCALE_DEFS = {
+export const SCALE_DEFS: Record<ScaleName, number[]> = {
   // Church modes
   'Ionian':      [0, 2, 4, 5, 7, 9, 11],
   'Dorian':      [0, 2, 3, 5, 7, 9, 10],
@@ -23,14 +36,14 @@ const SCALE_DEFS = {
  * scales (whole tone, diminished) are deliberately excluded — they'd get no
  * diatonic chord and no siblings (see getSiblings).
  */
-const SCALE_PARENTS = {
+const SCALE_PARENTS: Record<string, number[]> = {
   'Melodic Minor':  [0, 2, 3, 5, 7, 9, 11],
   'Harmonic Minor': [0, 2, 3, 5, 7, 8, 11],
   'Harmonic Major': [0, 2, 4, 5, 7, 8, 11],
 };
 
 /** Mode names for each parent, in rotation order (index 0 = the parent itself). */
-const FAMILY_MODE_NAMES = {
+const FAMILY_MODE_NAMES: Record<string, ScaleName[]> = {
   'Melodic Minor':  ['Melodic Minor', 'Dorian b2', 'Lydian Augmented', 'Lydian Dominant', 'Mixolydian b6', 'Locrian #2', 'Altered'],
   'Harmonic Minor': ['Harmonic Minor', 'Locrian #6', 'Ionian #5', 'Ukrainian Dorian', 'Phrygian Dominant', 'Lydian #2', 'Altered bb7'],
   'Harmonic Major': ['Harmonic Major', 'Dorian b5', 'Phrygian b4', 'Lydian b3', 'Mixolydian b2', 'Lydian Augmented #2', 'Locrian bb7'],
@@ -40,7 +53,7 @@ const FAMILY_MODE_NAMES = {
  * Rotates a parent scale's interval array to start at degree k, renormalizing
  * so the new root is 0. mode(I, k)[j] = (I[(k+j) % n] - I[k] + 12) % 12.
  */
-function rotateIntervals(parent, k) {
+function rotateIntervals(parent: number[], k: number): number[] {
   const n = parent.length;
   return Array.from({ length: n }, (_, j) => (parent[(k + j) % n] - parent[k] + 12) % 12);
 }
@@ -52,7 +65,7 @@ for (const [family, parent] of Object.entries(SCALE_PARENTS)) {
 }
 
 /** Groups of mode names for the settings-panel UI and as the derivation reference pool. */
-const SCALE_FAMILIES = {
+export const SCALE_FAMILIES: Record<string, ScaleName[]> = {
   'Church Modes':          ['Ionian', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Aeolian', 'Locrian'],
   'Melodic Minor Modes':   FAMILY_MODE_NAMES['Melodic Minor'],
   'Harmonic Minor Modes':  FAMILY_MODE_NAMES['Harmonic Minor'],
@@ -61,19 +74,19 @@ const SCALE_FAMILIES = {
 };
 
 /** Scales enabled by default on a fresh install — the original 10, before this expansion. */
-const DEFAULT_ENABLED_SCALES = [
+export const DEFAULT_ENABLED_SCALES: ScaleName[] = [
   ...SCALE_FAMILIES['Church Modes'],
   ...SCALE_FAMILIES['Pentatonic & Blues'],
 ];
 
 /** 12 pitch-class display names (0 = C). */
-const ROOT_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const ROOT_NAMES: string[] = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 /**
  * Musical knowledge cards for each scale/mode.
  * brightness: 1 (very dark) – 5 (very bright)
  */
-const SCALE_INFO = {
+export const SCALE_INFO: Record<ScaleName, ScaleInfo> = {
   'Ionian': {
     alias: '= Major scale',
     feel: 'Bright, happy and resolved. The archetypal Western major scale — familiar and uplifting without tension.',
@@ -265,16 +278,14 @@ Object.assign(SCALE_INFO, {
  * instead of clamping most of them to 7. Odd-cardinality scales (pentatonics,
  * blues) aren't comparable by sum across different note counts, so they keep
  * their hand-picked SCALE_INFO value.
- * @param {string} modeName
- * @returns {number}
  */
-function getBrightness(modeName) {
+export function getBrightness(modeName: ScaleName): number {
   const intervals = SCALE_DEFS[modeName];
   if (intervals.length === 7) {
     const sum = intervals.reduce((a, b) => a + b, 0);
     return sum - 30;
   }
-  return SCALE_INFO[modeName].brightness;
+  return SCALE_INFO[modeName].brightness!;
 }
 
 // ── Derivation: "closest known scale" + what changed ─────────
@@ -286,7 +297,7 @@ const DEGREE_NAME_BY_INTERVAL = ['1', '♭2', '2', '♭3', '3', '4', '♭5', '5'
 const ANCHOR_MODES = new Set(['Ionian', 'Aeolian']);
 
 /** Display label used in derivation text ("= Major with #4", not "= Ionian with #4"). */
-const REF_LABEL = {
+const REF_LABEL: Record<string, string> = {
   Ionian: 'Major', Aeolian: 'Minor',
   Dorian: 'Dorian', Phrygian: 'Phrygian', Lydian: 'Lydian',
   Mixolydian: 'Mixolydian', Locrian: 'Locrian',
@@ -301,10 +312,10 @@ const CHURCH_MODES = SCALE_FAMILIES['Church Modes'];
  * Index-wise diff between two equal-length interval arrays. Every scale here
  * is sorted starting at 0, so scale degree N is always index N-1 in both
  * arrays — no note-matching/alignment logic needed.
- * @returns {Array<{degree: number, delta: number}>}  delta: +-1 = #/b, +-2 = ##/bb
+ * delta: +-1 = #/b, +-2 = ##/bb
  */
-function diffScales(refIntervals, curIntervals) {
-  const moves = [];
+function diffScales(refIntervals: number[], curIntervals: number[]): DegreeMove[] {
+  const moves: DegreeMove[] = [];
   for (let i = 0; i < refIntervals.length; i++) {
     if (refIntervals[i] === curIntervals[i]) continue;
     let delta = curIntervals[i] - refIntervals[i];
@@ -321,7 +332,7 @@ function diffScales(refIntervals, curIntervals) {
  * a sharp — raising Aeolian's flat 6th/7th back to the unaltered pitch reads
  * as "natural 6", not "sharp 6" (standard usage: "Dorian = Minor with natural 6").
  */
-function alterationSymbol(move, refName) {
+function alterationSymbol(move: DegreeMove, refName: string): string {
   const abs = Math.abs(move.delta);
   if (move.delta > 0 && refName === 'Aeolian' && abs === 1) return `♮${move.degree}`;
   const sign = move.delta > 0 ? '♯' : '♭';
@@ -329,8 +340,8 @@ function alterationSymbol(move, refName) {
 }
 
 /** Picks the candidate reference with fewest moves, tie-broken by FAMILIARITY. */
-function derivationFromCandidates(intervals, candidateNames) {
-  let best = null;
+function derivationFromCandidates(intervals: number[], candidateNames: ScaleName[]) {
+  let best: { refName: ScaleName; moves: DegreeMove[]; rank: number } | null = null;
   for (const refName of candidateNames) {
     const moves = diffScales(SCALE_DEFS[refName], intervals);
     const rank = FAMILIARITY.indexOf(refName);
@@ -340,20 +351,21 @@ function derivationFromCandidates(intervals, candidateNames) {
     }
   }
   return {
-    refName: best.refName,
-    refLabel: REF_LABEL[best.refName] ?? best.refName,
-    moves: best.moves,
-    degreeIndices: best.moves.map(m => m.degree - 1),
+    refName: best!.refName,
+    refLabel: REF_LABEL[best!.refName] ?? best!.refName,
+    kind: 'alteration' as const,
+    moves: best!.moves,
+    degreeIndices: best!.moves.map(m => m.degree - 1),
   };
 }
 
 /** Handles the three scales whose cardinality differs from their closest relative. */
-function deriveOtherCardinality(modeName, intervals) {
+function deriveOtherCardinality(modeName: ScaleName, intervals: number[]) {
   if (modeName === 'Major Pentatonic' || modeName === 'Minor Pentatonic') {
     const refName = modeName === 'Major Pentatonic' ? 'Ionian' : 'Aeolian';
     const missing = SCALE_DEFS[refName].filter(iv => !intervals.includes(iv));
     return {
-      refName, refLabel: REF_LABEL[refName], kind: 'subset',
+      refName, refLabel: REF_LABEL[refName], kind: 'subset' as const,
       missingDegreeNames: missing.map(iv => DEGREE_NAME_BY_INTERVAL[iv]),
       degreeIndices: [],
     };
@@ -361,7 +373,7 @@ function deriveOtherCardinality(modeName, intervals) {
   // Blues
   const added = intervals.filter(iv => !SCALE_DEFS['Minor Pentatonic'].includes(iv));
   return {
-    refName: 'Minor Pentatonic', refLabel: 'Minor Pentatonic', kind: 'superset',
+    refName: 'Minor Pentatonic', refLabel: 'Minor Pentatonic', kind: 'superset' as const,
     addedDegreeNames: added.map(iv => DEGREE_NAME_BY_INTERVAL[iv]),
     degreeIndices: added.map(iv => intervals.indexOf(iv)),
   };
@@ -371,9 +383,8 @@ function deriveOtherCardinality(modeName, intervals) {
  * Finds the closest known scale to `modeName` and what changed, so the UI can
  * show e.g. "= Major with #4". Returns null for Ionian/Aeolian, which are
  * anchors carrying their own `alias` text instead.
- * @returns {{refName: string, refLabel: string, moves?: Array, degreeIndices: number[], kind?: string} | null}
  */
-function getDerivation(modeName) {
+export function getDerivation(modeName: ScaleName): Derivation | null {
   if (ANCHOR_MODES.has(modeName)) return null;
   const intervals = SCALE_DEFS[modeName];
 
@@ -391,10 +402,8 @@ function getDerivation(modeName) {
 /**
  * Formats a derivation object into UI text, e.g. "Major with #4" or
  * "Minor Pentatonic plus b5". Returns null for anchors (no derivation).
- * @param {ReturnType<typeof getDerivation>} derivation
- * @returns {string | null}
  */
-function formatDerivation(derivation) {
+export function formatDerivation(derivation: Derivation | null): string | null {
   if (!derivation) return null;
   if (derivation.kind === 'subset') {
     return `${derivation.refLabel} without ${derivation.missingDegreeNames.join(' and ')}`;
@@ -413,11 +422,8 @@ function formatDerivation(derivation) {
  * sharp; lower drops a sharp, else adds a flat — correct for single
  * alterations (D->D#, F#->F, Ab->A, Bb->Bbb) though remote enharmonic
  * spellings can still drift, same tradeoff ROOT_NAMES already makes app-wide.
- * @param {string} noteName
- * @param {'raise'|'lower'} direction
- * @returns {string}
  */
-function alterName(noteName, direction) {
+function alterName(noteName: string, direction: 'raise' | 'lower'): string {
   if (direction === 'raise') {
     return noteName.endsWith('b') ? noteName.slice(0, -1) : noteName + '#';
   }
@@ -428,13 +434,10 @@ function alterName(noteName, direction) {
  * Finds sibling scales: same root, same cardinality, exactly one degree
  * moved by a semitone. Drawn from all 31 scales regardless of which are
  * enabled — seeing a disabled sibling is discovery, not noise.
- * @param {number} rootPitchClass
- * @param {string} modeName
- * @returns {Array<{rootName: string, modeName: string, noteChange: string}>}
  */
-function getSiblings(rootPitchClass, modeName) {
+export function getSiblings(rootPitchClass: PitchClass, modeName: ScaleName): Sibling[] {
   const intervals = SCALE_DEFS[modeName];
-  const siblings = [];
+  const siblings: Sibling[] = [];
   for (const [otherName, otherIntervals] of Object.entries(SCALE_DEFS)) {
     if (otherName === modeName || otherIntervals.length !== intervals.length) continue;
     const moves = diffScales(intervals, otherIntervals);
@@ -451,13 +454,8 @@ function getSiblings(rootPitchClass, modeName) {
   return siblings;
 }
 
-/**
- * Returns a Set of pitch classes (0–11) belonging to the scale.
- * @param {number} rootPitchClass  0–11
- * @param {string} modeName
- * @returns {Set<number>}
- */
-function getScaleNotes(rootPitchClass, modeName) {
+/** Returns a Set of pitch classes (0–11) belonging to the scale. */
+export function getScaleNotes(rootPitchClass: PitchClass, modeName: ScaleName): Set<PitchClass> {
   const intervals = SCALE_DEFS[modeName];
   if (!intervals) throw new Error(`Unknown mode: ${modeName}`);
   return new Set(intervals.map(i => (rootPitchClass + i) % 12));
@@ -466,15 +464,12 @@ function getScaleNotes(rootPitchClass, modeName) {
 /**
  * Returns diatonic triads for 7-note modes (stacked thirds within the scale).
  * For pentatonic/blues scales returns an empty array — no conventional triads.
- * @param {number} rootPitchClass
- * @param {string} modeName
- * @returns {Array<{label: string, notes: number[]}>}
  */
-function getDiatonicTriads(rootPitchClass, modeName) {
+export function getDiatonicTriads(rootPitchClass: PitchClass, modeName: ScaleName): Triad[] {
   const intervals = SCALE_DEFS[modeName];
   if (!intervals || intervals.length !== 7) return [];
 
-  const triads = [];
+  const triads: Triad[] = [];
   const degreeNames = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 
   for (let d = 0; d < 7; d++) {
@@ -505,11 +500,10 @@ function getDiatonicTriads(rootPitchClass, modeName) {
 /**
  * Returns the semitone step sizes between consecutive scale degrees,
  * including the wrap-around step back to the next octave root.
- * @param {number[]} intervals  — sorted interval array from SCALE_DEFS
- * @returns {number[]}
+ * @param intervals — sorted interval array from SCALE_DEFS
  */
-function getStepSizes(intervals) {
-  const steps = [];
+export function getStepSizes(intervals: number[]): number[] {
+  const steps: number[] = [];
   for (let i = 0; i < intervals.length; i++) {
     const next = i + 1 < intervals.length ? intervals[i + 1] : 12;
     steps.push(next - intervals[i]);
@@ -520,13 +514,10 @@ function getStepSizes(intervals) {
 /**
  * Finds all (root, mode) combinations whose pitch-class set is identical
  * to the given scale, excluding the input scale itself.
- * @param {number} rootPitchClass
- * @param {string} modeName
- * @returns {Array<{rootName: string, modeName: string}>}
  */
-function findRelatedScales(rootPitchClass, modeName) {
+export function findRelatedScales(rootPitchClass: PitchClass, modeName: ScaleName): RelatedScale[] {
   const target = getScaleNotes(rootPitchClass, modeName);
-  const results = [];
+  const results: RelatedScale[] = [];
   for (let r = 0; r < 12; r++) {
     for (const mode of Object.keys(SCALE_DEFS)) {
       if (r === rootPitchClass && mode === modeName) continue;
@@ -545,11 +536,9 @@ function findRelatedScales(rootPitchClass, modeName) {
 
 /**
  * Picks a random key and mode and returns everything the UI needs.
- * @param {string[]|null} enabledModes  Optional list of mode names to pick from.
- * @returns {{ rootPitchClass: number, rootName: string, modeName: string,
- *             scaleNotes: Set<number>, triads: Array }}
+ * @param enabledModes  Optional list of mode names to pick from.
  */
-function randomKeyAndMode(enabledModes = null) {
+export function randomKeyAndMode(enabledModes: ScaleName[] | null = null): KeyAndMode {
   const modeNames = (enabledModes && enabledModes.length > 0)
     ? enabledModes
     : Object.keys(SCALE_DEFS);
@@ -564,11 +553,9 @@ function randomKeyAndMode(enabledModes = null) {
 /**
  * Picks one random triad from the triads array.
  * Falls back to a tonic triad placeholder when triads is empty (pentatonic/blues).
- * @param {Array<{label: string, notes: number[]}>} triads
- * @param {number} rootPitchClass  used for fallback
- * @returns {{ label: string, notes: number[] }}
+ * @param rootPitchClass  used for fallback
  */
-function pickRandomChord(triads, rootPitchClass = 0) {
+export function pickRandomChord(triads: Triad[], rootPitchClass: PitchClass = 0): Chord {
   if (triads.length === 0) {
     return { label: `${ROOT_NAMES[rootPitchClass]} (root)`, notes: [rootPitchClass] };
   }

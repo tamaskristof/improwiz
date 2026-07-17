@@ -1,0 +1,42 @@
+/* ── CSS variables ──────────────────────────────────────────── */
+:root {
+  --color-bg:        #1a1a2e;
+  --color-panel-bg:  #16213e;
+  --color-border:    #0f3460;
+
+  --color-scale:          #3a6bc4;  /* subtle blue tint — scale notes */
+  --color-root:           #e07c24;  /* orange/amber — root note */
+  --color-pressed:        #fffde7;  /* bright near-white — physically pressed */
+  --color-characteristic: #b06ad9;  /* violet — the note that differs from the closest known scale */
+
+  --white-key-bg:    #f0ece2;
+  --black-key-bg:    #1e1e1e;
+
+  --key-white-w:     34px;
+  --key-white-h:     160px;
+  --key-black-w:     22px;
+  --key-black-h:     100px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--color-bg);
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Svelte mounts into this div, which takes over the flex layout the original
+   applied directly to body (body itself is just #app's sole parent now). */
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Shared by the mic toggle button and the run-score live indicator dot. */
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(224, 124, 36, 0.5); }
+  50%       { box-shadow: 0 0 0 5px rgba(224, 124, 36, 0);   }
+}

@@ -1,19 +1,22 @@
-// src/midi.js — WebMIDI initialization and message parsing
+// src/lib/midi.ts — WebMIDI initialization and message parsing
+
+import type { MidiNote, NoteOffHandler, NoteOnHandler, StatusHandler } from './types';
+
+export interface MidiController {
+  getInputs: () => MIDIInputMap | null;
+}
 
 /**
  * Initializes WebMIDI and wires up note callbacks.
- *
- * @param {(midi: number, velocity: number) => void} onNoteOn
- * @param {(midi: number) => void}                   onNoteOff
- * @param {(deviceName: string | null) => void}      onStatusChange
- * @returns {{ getInputs: () => MIDIInputMap | null }}
  */
-function initMidi(onNoteOn, onNoteOff, onStatusChange) {
-  let midiAccess = null;
+export function initMidi(
+  onNoteOn: NoteOnHandler,
+  onNoteOff: NoteOffHandler,
+  onStatusChange: StatusHandler,
+): MidiController {
+  let midiAccess: MIDIAccess | null = null;
 
   if (!navigator.requestMIDIAccess) {
-    const banner = document.getElementById('unsupported-banner');
-    if (banner) banner.hidden = false;
     onStatusChange(null);
     return { getInputs: () => null };
   }
@@ -34,27 +37,27 @@ function initMidi(onNoteOn, onNoteOff, onStatusChange) {
     });
 
   /** Attach midimessage listeners to every current input. */
-  function attachListeners() {
-    for (const input of midiAccess.inputs.values()) {
+  function attachListeners(): void {
+    for (const input of midiAccess!.inputs.values()) {
       input.onmidimessage = handleMessage;
     }
   }
 
   /** Parse a raw MIDI message and invoke the appropriate callback. */
-  function handleMessage(event) {
-    const [status, note, velocity] = event.data;
+  function handleMessage(event: MIDIMessageEvent): void {
+    const [status, note, velocity] = event.data!;
     const command = status & 0xf0;
 
     if (command === 0x90 && velocity > 0) {
-      onNoteOn(note, velocity);
+      onNoteOn(note as MidiNote, velocity);
     } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
-      onNoteOff(note);
+      onNoteOff(note as MidiNote);
     }
   }
 
   /** Report the first connected device name (or null) to the UI. */
-  function broadcastStatus() {
-    const inputs = [...midiAccess.inputs.values()];
+  function broadcastStatus(): void {
+    const inputs = [...midiAccess!.inputs.values()];
     const active = inputs.find(i => i.state === 'connected' || i.connection !== 'closed');
     onStatusChange(active ? active.name : null);
   }
