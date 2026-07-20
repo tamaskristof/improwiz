@@ -7,9 +7,12 @@ import {
   findRelatedScales,
   formatDerivation,
   getBrightness,
+  getDegreeLabel,
   getDerivation,
+  getNoteRole,
   getSiblings,
   getStepSizes,
+  prettifyAccidental,
 } from '../src/lib/scales';
 
 describe('getDerivation', () => {
@@ -118,6 +121,56 @@ describe('findRelatedScales', () => {
 describe('getStepSizes', () => {
   it('computes step sizes including the wrap-around to the octave', () => {
     expect(getStepSizes(SCALE_DEFS['Ionian'])).toEqual([2, 2, 1, 2, 2, 2, 1]);
+  });
+});
+
+describe('getNoteRole', () => {
+  // C Dorian: scale {0,2,3,5,7,9,10}; its characteristic note is the natural 6 (A = 9).
+  const scale = new Set([0, 2, 3, 5, 7, 9, 10]);
+  const characteristic = new Set([9]);
+
+  it('marks the root before anything else', () => {
+    expect(getNoteRole(0, 0, characteristic, scale)).toBe('root');
+  });
+
+  it('marks characteristic notes as characteristic', () => {
+    expect(getNoteRole(9, 0, characteristic, scale)).toBe('characteristic');
+  });
+
+  it('marks other scale tones as scale', () => {
+    expect(getNoteRole(2, 0, characteristic, scale)).toBe('scale');
+    expect(getNoteRole(3, 0, characteristic, scale)).toBe('scale');
+    expect(getNoteRole(10, 0, characteristic, scale)).toBe('scale');
+  });
+
+  it('returns null for notes outside the scale', () => {
+    expect(getNoteRole(1, 0, characteristic, scale)).toBeNull();
+  });
+});
+
+describe('getDegreeLabel', () => {
+  it('labels chord tones and extensions relative to the root', () => {
+    expect(getDegreeLabel(0)).toBe('1');
+    expect(getDegreeLabel(3)).toBe('♭3');
+    expect(getDegreeLabel(7)).toBe('5');
+    expect(getDegreeLabel(10)).toBe('♭7');
+    expect(getDegreeLabel(2)).toBe('9');
+    expect(getDegreeLabel(5)).toBe('11');
+    expect(getDegreeLabel(9)).toBe('13');
+  });
+
+  it('normalizes out-of-range semitone counts mod 12', () => {
+    expect(getDegreeLabel(12)).toBe('1');
+    expect(getDegreeLabel(14)).toBe('9');
+    expect(getDegreeLabel(-2)).toBe('♭7');
+  });
+});
+
+describe('prettifyAccidental', () => {
+  it('swaps ascii accidentals for unicode glyphs', () => {
+    expect(prettifyAccidental('Eb')).toBe('E♭');
+    expect(prettifyAccidental('F#')).toBe('F♯');
+    expect(prettifyAccidental('C')).toBe('C');
   });
 });
 

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Piano samples — 32 MB, fetched via `npm run fetch-samples` (not tracked)
+public/salamander/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

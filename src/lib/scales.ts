@@ -561,3 +561,48 @@ export function pickRandomChord(triads: Triad[], rootPitchClass: PitchClass = 0)
   }
   return triads[Math.floor(Math.random() * triads.length)];
 }
+
+// ── Display helpers for the v5 annotation zone & keyboard ─────
+
+/**
+ * The functional role of a pitch class within the current scale: the root, a
+ * characteristic note (one that defines the scale's flavour, from its derivation),
+ * an ordinary scale tone, or nothing at all. Drives the three-colour scheme
+ * (brass / rose / teal) shared by the notes-of-the-scale list and the keyboard.
+ * Root is checked first so the tonic never reads as a mere characteristic note
+ * even when it happens to be one.
+ */
+export type NoteRole = 'root' | 'characteristic' | 'scale' | null;
+
+export function getNoteRole(
+  pc: PitchClass,
+  rootPitchClass: PitchClass,
+  characteristicNotes: Set<PitchClass>,
+  scaleNotes: Set<PitchClass>,
+): NoteRole {
+  if (pc === rootPitchClass) return 'root';
+  if (characteristicNotes.has(pc)) return 'characteristic';
+  if (scaleNotes.has(pc)) return 'scale';
+  return null;
+}
+
+/**
+ * Chord/tension-relative degree name for a pitch a given number of semitones
+ * above the root — e.g. 3 → "♭3", 2 → "9", 9 → "13". Non-chord scale tones read
+ * as their compound extension (9/11/13) the way a player thinks of them over the
+ * chord, so this labels the whole scale, not just the triad. `semitones` is taken
+ * mod 12, so absolute pitch-class differences work as-is.
+ */
+const DEGREE_LABELS = ['1', '♭9', '9', '♭3', '3', '11', '♯11', '5', '♭13', '13', '♭7', '7'];
+
+export function getDegreeLabel(semitones: number): string {
+  return DEGREE_LABELS[((semitones % 12) + 12) % 12];
+}
+
+/**
+ * Respells a `ROOT_NAMES`-style note name (`Eb`, `F#`) with the proper Unicode
+ * accidental glyphs (`E♭`, `F♯`) for display. Naturals pass through unchanged.
+ */
+export function prettifyAccidental(name: string): string {
+  return name.replace(/b/g, '♭').replace(/#/g, '♯');
+}

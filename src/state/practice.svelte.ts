@@ -7,12 +7,10 @@ import {
   findRelatedScales,
   getDerivation,
   getSiblings,
-  pickRandomChord,
   randomKeyAndMode,
 } from '../lib/scales';
 import { score } from './score.svelte';
 import type {
-  Chord,
   Derivation,
   PitchClass,
   RelatedScale,
@@ -39,7 +37,6 @@ class PracticeState {
   rootName          = $state('—');
   modeName          = $state<ScaleName>('—');
   scaleNotes        = $state<Set<PitchClass>>(new Set());
-  chord             = $state<Chord>({ label: '—', notes: [] });
   derivation        = $state<Derivation | null>(null);
   characteristicNotes = $state<Set<PitchClass>>(new Set());
   siblings          = $state<Sibling[]>([]);
@@ -81,9 +78,8 @@ class PracticeState {
 
   /** Randomize is the run boundary: bank what was just played, then start fresh. */
   randomize(): void {
-    const { rootPitchClass, rootName, modeName, scaleNotes, triads } =
+    const { rootPitchClass, rootName, modeName, scaleNotes } =
       randomKeyAndMode(this.enabledScales);
-    const chord = pickRandomChord(triads, rootPitchClass);
 
     const intervals = SCALE_DEFS[modeName];
     const derivation = getDerivation(modeName);
@@ -95,13 +91,12 @@ class PracticeState {
     this.rootName             = rootName;
     this.modeName             = modeName;
     this.scaleNotes           = scaleNotes;
-    this.chord                = chord;
     this.derivation           = derivation;
     this.characteristicNotes  = characteristicNotes;
     this.siblings             = getSiblings(rootPitchClass, modeName);
     this.related              = findRelatedScales(rootPitchClass, modeName);
 
-    score.beginRun(`${rootName} ${modeName}`, { scaleNotes, rootPitchClass, chordNotes: chord.notes });
+    score.beginRun(`${rootName} ${modeName}`, { scaleNotes, rootPitchClass, chordNotes: [] });
   }
 }
 

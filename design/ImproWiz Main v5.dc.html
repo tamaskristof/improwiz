@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html { overflow-x: auto; overflow-y: auto; }
+  body { margin: 0; height: 100%; -webkit-font-smoothing: antialiased; }
+  a { color: var(--primary); }
+  a:hover { color: var(--n-chord); }
+  @keyframes iw-pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+</style>
+</helmet>
+<div ref="{{ setRoot }}" style="--bg:#161514;--surface:#1f1e1c;--card:#242220;--ink:#eae6dd;--muted:#8f8a7e;--faint:#6f6a5e;--border:rgba(255,255,255,.09);--primary:#c2a05c;--n-root:#c2a05c;--n-chord:#7ea395;--n-tension:#b3847c;--n-avoid:#8f8a7e;--n-dim:#3a3733;--good:#7ea395;--meter:#8f8a7e;--track:#2b2925;--key-white:#ece7da;--key-black:#17150f;--key-border:#c9c3b2;--font-display:'Space Grotesk';--font-body:'Hanken Grotesk';min-height:100vh;min-width:1140px;box-sizing:border-box;overflow-x:auto;background:var(--bg);color:var(--ink);font-family:var(--font-body);display:flex;flex-direction:column">
+
+  <!-- ============ TOP BAR ============ -->
+  <div style="flex-shrink:0;display:flex;align-items:center;gap:14px;padding:9px 24px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:20px;height:20px;border-radius:6px;background:var(--primary);flex-shrink:0"></div>
+      <span style="font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-.01em">ImproWiz</span>
+    </div>
+    <div style="width:1px;height:18px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span onClick="{{ setFree }}" style="{{ freeStyle }}">Free Play</span>
+      <span onClick="{{ setTarget }}" style="{{ targetStyle }}">Target</span>
+    </div>
+    <div style="width:1px;height:18px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span onClick="{{ setBeginner }}" style="{{ beginnerStyle }}">Beginner</span>
+      <span onClick="{{ setIntermediate }}" style="{{ intermediateStyle }}">Intermediate</span>
+      <span onClick="{{ setAdvanced }}" style="{{ advancedStyle }}">Advanced</span>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:20px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--good);animation:iw-pulse 2s infinite"></span>
+        <span style="font:600 11px var(--font-body);color:var(--muted)">MIDI &#183; Roland FP-30</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font:500 11px var(--font-body);color:var(--muted)">Streak</span>
+        <span style="font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--n-tension)">12</span>
+        <span style="font:500 11px var(--font-body);color:var(--muted)">days</span>
+      </div>
+      <button onClick="{{ toggleTheme }}" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--ink);font:700 11px var(--font-body)">{{ themeLabel }}</button>
+    </div>
+  </div>
+
+  <!-- ============ STATUS ZONE ============ -->
+  <div style="flex-shrink:0;display:flex;align-items:center;gap:20px;padding:13px 26px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--font-display);font-weight:700;font-size:46px;letter-spacing:-.02em;line-height:1">C Dorian</span>
+    <span style="font:600 14px var(--font-body);color:var(--muted)">2 flats &#183; B&#9837;, E&#9837;</span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:22px">
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <span style="font:800 10px var(--font-body);letter-spacing:.1em;color:var(--primary)">TARGET</span>
+        <span style="font:600 13px var(--font-body);color:var(--ink)">ii&#8211;V&#8211;I in B&#9837; &#183; Bar 3/8</span>
+      </div>
+      <div style="width:110px;height:6px;border-radius:99px;background:var(--track);overflow:hidden"><div style="width:37%;height:100%;background:var(--primary)"></div></div>
+      <div style="width:1px;height:36px;background:var(--border)"></div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--primary);animation:iw-pulse 1.2s infinite;flex-shrink:0"></span>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font:700 10px var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)">Now playing</span>
+          <span style="font-family:var(--font-display);font-weight:700;font-size:34px;line-height:1">Cm7</span>
+        </div>
+      </div>
+      <div style="position:relative;width:56px;height:56px;border-radius:50%;background:conic-gradient(var(--n-chord) 0 87%, var(--track) 87% 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <div style="width:42px;height:42px;border-radius:50%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-family:var(--font-display);font-weight:700;font-size:16px;line-height:1">87</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ANNOTATION ZONE ============ -->
+  <div style="flex-shrink:0;display:grid;grid-template-columns:230px 1fr 260px">
+    <!-- left: scale reference -->
+    <div style="padding:12px 22px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <span style="font:700 10px var(--font-body);color:var(--faint);text-transform:uppercase;letter-spacing:.08em">Notes of the scale</span>
+        <span style="font:600 11px var(--font-body);color:var(--faint)">Parent: B&#9837; Major</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-root)">C</span><span style="font:500 13px var(--font-body);color:var(--faint)">1 &#183; Root</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-tension)">D</span><span style="font:500 13px var(--font-body);color:var(--faint)">9 &#183; Tension</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-chord)">E&#9837;</span><span style="font:500 13px var(--font-body);color:var(--faint)">&#9837;3 &#183; Chord</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-tension)">F</span><span style="font:500 13px var(--font-body);color:var(--faint)">11 &#183; Tension</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-chord)">G</span><span style="font:500 13px var(--font-body);color:var(--faint)">5 &#183; Chord</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-tension)">A</span><span style="font:700 13px var(--font-body);color:var(--n-tension)">&#9733; 13</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="width:26px;font:700 20px var(--font-body);color:var(--n-chord)">B&#9837;</span><span style="font:500 13px var(--font-body);color:var(--faint)">&#9837;7 &#183; Chord</span></div>
+      </div>
+      <div style="height:1px;background:var(--border);margin:3px 0"></div>
+      <span style="font:700 10px var(--font-body);color:var(--faint);text-transform:uppercase;letter-spacing:.08em">Sounds good over</span>
+      <span style="font:600 13px var(--font-body);color:var(--muted)">Cm7 &#183; Cm6 &#183; Cm9 &#183; Cm11</span>
+    </div>
+    <!-- center: identity + score -->
+    <div style="padding:12px 26px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:10px">
+      <span style="font:700 10px var(--font-body);color:var(--faint);text-transform:uppercase;letter-spacing:.08em">Scale identity &#183; score</span>
+      <div style="display:flex;align-items:flex-start;gap:28px">
+      <span style="font:500 14px/1.5 var(--font-body);color:var(--muted);max-width:280px;flex-shrink:0">Minor, but hopeful &#8212; the natural 6th lifts the shadows.</span>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px 24px">
+        <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;justify-content:space-between;font:600 12px var(--font-body)"><span>In-key</span><span style="color:var(--muted)">96</span></div><div style="height:5px;border-radius:99px;background:var(--track)"><div style="width:96%;height:100%;border-radius:99px;background:var(--meter)"></div></div></div>
+        <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;justify-content:space-between;font:600 12px var(--font-body)"><span>Resolution</span><span style="color:var(--muted)">82</span></div><div style="height:5px;border-radius:99px;background:var(--track)"><div style="width:82%;height:100%;border-radius:99px;background:var(--meter)"></div></div></div>
+        <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;justify-content:space-between;font:600 12px var(--font-body)"><span>Rhythm</span><span style="color:var(--muted)">78</span></div><div style="height:5px;border-radius:99px;background:var(--track)"><div style="width:78%;height:100%;border-radius:99px;background:var(--meter)"></div></div></div>
+        <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;justify-content:space-between;font:600 12px var(--font-body)"><span>Phrasing</span><span style="color:var(--muted)">64</span></div><div style="height:5px;border-radius:99px;background:var(--track)"><div style="width:64%;height:100%;border-radius:99px;background:var(--meter)"></div></div></div>
+      </div>
+      </div>
+    </div>
+    <!-- right: where next + coach -->
+    <div style="padding:12px 22px;display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font:700 10px var(--font-body);color:var(--faint);text-transform:uppercase;letter-spacing:.08em">Where to go next</span>
+        <div style="display:flex;gap:10px">
+          <span onClick="{{ setTheoryTab }}" style="{{ theoryTabStyle }}">Theory</span>
+          <span onClick="{{ setGoalTab }}" style="{{ goalTabStyle }}">Goal</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span style="font:700 20px var(--font-display)">F7 <span style="font:500 13px var(--font-body);color:var(--muted)">V7, pulls home</span></span>
+        <span style="font:700 20px var(--font-display)">E&#9837;maj7 <span style="font:500 13px var(--font-body);color:var(--muted)">stays warm</span></span>
+      </div>
+      <div style="height:1px;background:var(--border);margin:2px 0"></div>
+      <span style="font:500 13px/1.4 var(--font-body);color:var(--muted)"><b style="color:var(--ink)">Coach:</b> lean on <b style="color:var(--n-tension)">A</b> at the end of a phrase to show off the raised 6th.</span>
+    </div>
+  </div>
+
+  <!-- ============ HERO KEYBOARD ============ -->
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+    <div style="flex:1;min-height:0"></div>
+    <div style="flex-shrink:0;display:flex;gap:16px;padding:0 24px 6px">
+      <span style="display:flex;align-items:center;gap:5px;font:600 11px var(--font-body);color:var(--muted)"><span style="width:9px;height:9px;border-radius:2px;background:var(--n-root)"></span>Root</span>
+      <span style="display:flex;align-items:center;gap:5px;font:600 11px var(--font-body);color:var(--muted)"><span style="width:9px;height:9px;border-radius:2px;background:var(--n-chord)"></span>Chord tone</span>
+      <span style="display:flex;align-items:center;gap:5px;font:600 11px var(--font-body);color:var(--muted)"><span style="width:9px;height:9px;border-radius:2px;background:var(--n-tension)"></span>Tension</span>
+    </div>
+    <div style="flex-shrink:0;height:155px;position:relative;border-top:1px solid var(--border)">
+      <div style="display:flex;height:100%;width:100%">
+        <sc-for list="{{ whiteKeys }}" as="k" hint-placeholder-count="52">
+          <div style="{{ k.wrapStyle }}">
+            <sc-if value="{{ k.isC }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute;top:6px;left:50%;transform:translateX(-50%);font:700 10px var(--font-body);color:var(--faint);z-index:4">{{ k.label }}</span>
+            </sc-if>
+            <sc-if value="{{ k.showHeld }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ k.heldStyle }}">{{ k.heldLabel }}</div>
+            </sc-if>
+            <sc-if value="{{ k.showCap }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ k.capStyle }}"></div>
+            </sc-if>
+            <sc-if value="{{ k.showTick }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ k.tickStyle }}"></div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <sc-for list="{{ blackKeys }}" as="k" hint-placeholder-count="36">
+        <div style="{{ k.wrapStyle }}">
+          <sc-if value="{{ k.showHeld }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ k.heldStyle }}">{{ k.heldLabel }}</div>
+          </sc-if>
+          <sc-if value="{{ k.showCap }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ k.capStyle }}"></div>
+          </sc-if>
+          <sc-if value="{{ k.showTick }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ k.tickStyle }}"></div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { dark: true, mode: 'target', difficulty: 'advanced', rightTab: 'theory' };
+  darkVars = {
+    '--bg':'#161514','--surface':'#1f1e1c','--card':'#242220','--ink':'#eae6dd','--muted':'#8f8a7e','--faint':'#6f6a5e','--border':'rgba(255,255,255,.09)','--primary':'#c2a05c','--n-root':'#c2a05c','--n-chord':'#7ea395','--n-tension':'#b3847c','--n-avoid':'#8f8a7e','--n-dim':'#3a3733','--good':'#7ea395','--meter':'#8f8a7e','--track':'#2b2925','--key-white':'#ece7da','--key-black':'#17150f','--key-border':'#c9c3b2'
+  };
+  lightVars = {
+    '--bg':'#f2ede2','--surface':'#f9f6ee','--card':'#fcfaf3','--ink':'#221f1a','--muted':'#7d7568','--faint':'#9a9284','--border':'#e1d9c8','--primary':'#a3813f','--n-root':'#a3813f','--n-chord':'#4f7a6c','--n-tension':'#9c6b62','--n-avoid':'#a89f8f','--n-dim':'#eee7d6','--good':'#4f7a6c','--meter':'#8a8272','--track':'#e4dbc7','--key-white':'#fefcf6','--key-black':'#211d16','--key-border':'#ddd3bf'
+  };
+  applyTheme(dark) {
+    if (!this.root) return;
+    const vars = dark ? this.darkVars : this.lightVars;
+    for (const k in vars) this.root.style.setProperty(k, vars[k]);
+  }
+  buildKeyboard() {
+    const chordPcs = [0, 3, 7, 10];
+    const tensionPcs = [2, 5, 9];
+    const heldPcs = [0, 3, 7, 10];
+    const heldOctave = 4;
+    const activeZoneOctaves = [3, 4, 5];
+    const whiteLetterCycle = ['C','D','E','F','G','A','B'];
+    const pcForLetter = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+    const blackAfter = { C:true, D:true, E:false, F:true, G:true, A:true, B:false };
+    const flatNameForBlackAfter = { C:'D\u266D', D:'E\u266D', F:'G\u266D', G:'A\u266D', A:'B\u266D' };
+    const seq = [{letter:'A',octave:0},{letter:'B',octave:0}];
+    for (let oct = 1; oct <= 7; oct++) for (const l of whiteLetterCycle) seq.push({letter:l, octave:oct});
+    seq.push({letter:'C', octave:8});
+
+    const whiteKeys = [];
+    const blackKeys = [];
+    let wi = 0;
+    const total = 52;
+    const whiteW = 100 / total;
+    const blackW = whiteW * 0.62;
+
+    const roleColor = (pc, isRoot) => isRoot ? 'var(--n-root)' : (chordPcs.includes(pc) ? 'var(--n-chord)' : (tensionPcs.includes(pc) ? 'var(--n-tension)' : null));
+
+    seq.forEach(s => {
+      const pc = pcForLetter[s.letter];
+      const isRoot = pc === 0;
+      const isFunctional = chordPcs.includes(pc) || tensionPcs.includes(pc);
+      const inZone = activeZoneOctaves.includes(s.octave);
+      const held = heldPcs.includes(pc) && s.octave === heldOctave;
+      const color = roleColor(pc, isRoot);
+      const left = wi * whiteW;
+
+      whiteKeys.push({
+        isC: s.letter === 'C',
+        label: 'C' + s.octave,
+        showHeld: held,
+        showCap: !held && inZone && isFunctional,
+        showTick: !held && !inZone && isFunctional,
+        heldLabel: s.letter,
+        wrapStyle: `position:relative;flex:0 0 ${whiteW}%;height:100%;background:var(--key-white);border-right:1px solid var(--key-border);box-sizing:border-box`,
+        heldStyle: `position:absolute;inset:0;background:${color};display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;color:#fff;font-weight:700;font-size:14px;font-family:var(--font-display)`,
+        capStyle: `position:absolute;inset:0;background:${color};opacity:.55`,
+        tickStyle: `position:absolute;left:8px;right:8px;bottom:3px;height:4px;border-radius:2px;background:${color};opacity:.5`,
+      });
+      if (blackAfter[s.letter] && !(s.letter === 'C' && s.octave === 8)) {
+        const bpc = pc + 1;
+        const bIsFunctional = chordPcs.includes(bpc) || tensionPcs.includes(bpc);
+        const bHeld = heldPcs.includes(bpc) && s.octave === heldOctave;
+        const bColor = roleColor(bpc, false);
+        const bLeft = (wi + 1) * whiteW - blackW / 2;
+        blackKeys.push({
+          showHeld: bHeld,
+          showCap: !bHeld && inZone && bIsFunctional,
+          showTick: !bHeld && !inZone && bIsFunctional,
+          heldLabel: flatNameForBlackAfter[s.letter],
+          wrapStyle: `position:absolute;top:0;left:${bLeft}%;width:${blackW}%;height:62%;background:var(--key-black);border-radius:0 0 4px 4px;z-index:3;box-sizing:border-box`,
+          heldStyle: `position:absolute;inset:0;background:${bColor};display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;color:#fff;font-weight:700;font-size:10px;font-family:var(--font-display)`,
+          capStyle: `position:absolute;inset:0;background:${bColor};opacity:.7`,
+          tickStyle: `position:absolute;left:5px;right:5px;bottom:3px;height:4px;border-radius:2px;background:${bColor};opacity:.5`,
+        });
+      }
+      wi++;
+    });
+    return { whiteKeys, blackKeys };
+  }
+  pillStyle(active) {
+    return active
+      ? 'font:700 12px var(--font-body);color:var(--primary);cursor:pointer;padding-bottom:3px;border-bottom:2px solid var(--primary)'
+      : 'font:700 12px var(--font-body);color:var(--muted);cursor:pointer;padding-bottom:3px;border-bottom:2px solid transparent';
+  }
+  diffPillStyle(active) {
+    return active
+      ? 'font:700 12px var(--font-body);color:var(--ink);cursor:pointer;padding-bottom:3px;border-bottom:2px solid var(--ink)'
+      : 'font:700 12px var(--font-body);color:var(--faint);cursor:pointer;padding-bottom:3px;border-bottom:2px solid transparent';
+  }
+  tabPillStyle(active) {
+    return active
+      ? 'font:700 11px var(--font-body);color:var(--ink);cursor:pointer'
+      : 'font:700 11px var(--font-body);color:var(--faint);cursor:pointer';
+  }
+  renderVals() {
+    const { whiteKeys, blackKeys } = this.buildKeyboard();
+    const { mode, difficulty, rightTab } = this.state;
+    return {
+      setRoot: (el) => { this.root = el; this.applyTheme(this.state.dark); },
+      themeLabel: this.state.dark ? 'Light mode' : 'Dark mode',
+      toggleTheme: () => this.setState(s => ({ dark: !s.dark }), () => this.applyTheme(this.state.dark)),
+      freeStyle: this.pillStyle(mode === 'free'),
+      targetStyle: this.pillStyle(mode === 'target'),
+      setFree: () => this.setState({ mode: 'free' }),
+      setTarget: () => this.setState({ mode: 'target' }),
+      beginnerStyle: this.diffPillStyle(difficulty === 'beginner'),
+      intermediateStyle: this.diffPillStyle(difficulty === 'intermediate'),
+      advancedStyle: this.diffPillStyle(difficulty === 'advanced'),
+      setBeginner: () => this.setState({ difficulty: 'beginner' }),
+      setIntermediate: () => this.setState({ difficulty: 'intermediate' }),
+      setAdvanced: () => this.setState({ difficulty: 'advanced' }),
+      theoryTabStyle: this.tabPillStyle(rightTab === 'theory'),
+      goalTabStyle: this.tabPillStyle(rightTab === 'goal'),
+      setTheoryTab: () => this.setState({ rightTab: 'theory' }),
+      setGoalTab: () => this.setState({ rightTab: 'goal' }),
+      whiteKeys, blackKeys,
+    };
+  }
+}
+</script>
+</body>
+</html>

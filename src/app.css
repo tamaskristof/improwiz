@@ -1,42 +1,79 @@
-/* ── CSS variables ──────────────────────────────────────────── */
+/* ── Design tokens (ImproWiz v5) ─────────────────────────────
+   Dark is the default; light overrides live under [data-theme="light"],
+   stamped on <html> by src/state/theme.svelte.ts. Only three functional
+   accent hues ever appear: brass (root), muted teal (chord), dusty rose
+   (tension) — everything else is neutral ink/muted/faint on warm graphite
+   (dark) or warm paper (light). Do not introduce more accent colours. */
 :root {
-  --color-bg:        #1a1a2e;
-  --color-panel-bg:  #16213e;
-  --color-border:    #0f3460;
+  --bg:         #161514;
+  --surface:    #1f1e1c;  /* reserved for raised surfaces */
+  --card:       #242220;  /* reserved */
+  --ink:        #eae6dd;
+  --muted:      #8f8a7e;
+  --faint:      #6f6a5e;
+  --border:     rgba(255, 255, 255, 0.09);
 
-  --color-scale:          #3a6bc4;  /* subtle blue tint — scale notes */
-  --color-root:           #e07c24;  /* orange/amber — root note */
-  --color-pressed:        #fffde7;  /* bright near-white — physically pressed */
-  --color-characteristic: #b06ad9;  /* violet — the note that differs from the closest known scale */
+  --primary:    #c2a05c;  /* brass — root, target/active accents */
+  --n-root:     #c2a05c;
+  --n-chord:    #7ea395;  /* muted teal — chord tones */
+  --n-tension:  #b3847c;  /* dusty rose — tensions */
+  --n-avoid:    #8f8a7e;
+  --n-dim:      #3a3733;
+  --good:       #7ea395;
+  --meter:      #8f8a7e;
+  --track:      #2b2925;
 
-  --white-key-bg:    #f0ece2;
-  --black-key-bg:    #1e1e1e;
+  --key-white:  #ece7da;
+  --key-black:  #17150f;
+  --key-border: #c9c3b2;
 
-  --key-white-w:     34px;
-  --key-white-h:     160px;
-  --key-black-w:     22px;
-  --key-black-h:     100px;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'Hanken Grotesk', 'Segoe UI', system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  --bg:         #f2ede2;
+  --surface:    #f9f6ee;
+  --card:       #fcfaf3;
+  --ink:        #221f1a;
+  --muted:      #7d7568;
+  --faint:      #9a9284;
+  --border:     #e1d9c8;
+
+  --primary:    #a3813f;
+  --n-root:     #a3813f;
+  --n-chord:    #4f7a6c;
+  --n-tension:  #9c6b62;
+  --n-avoid:    #a89f8f;
+  --n-dim:      #eee7d6;
+  --good:       #4f7a6c;
+  --meter:      #8a8272;
+  --track:      #e4dbc7;
+
+  --key-white:  #fefcf6;
+  --key-black:  #211d16;
+  --key-border: #ddd3bf;
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: var(--color-bg);
-  color: #e0e0e0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Svelte mounts into this div, which takes over the flex layout the original
-   applied directly to body (body itself is just #app's sole parent now). */
+/* Svelte mounts into #app, which owns the full-viewport column layout.
+   Desktop-only: below 1140px the page scrolls horizontally rather than
+   reflowing (per the v5 spec). */
 #app {
   min-height: 100vh;
+  min-width: 1140px;
   display: flex;
   flex-direction: column;
 }
 
-/* Shared by the mic toggle button and the run-score live indicator dot. */
-@keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 0 0   rgba(224, 124, 36, 0.5); }
-  50%       { box-shadow: 0 0 0 5px rgba(224, 124, 36, 0);   }
-}
+/* Pulsing status dots (MIDI-connected, now-playing, live-score). */
+@keyframes iw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }

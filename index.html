@@ -3,8 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="theme-color" content="#161514" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <!-- Design fonts. Loaded from Google Fonts, so they fall back to the system
+       stack when offline — VitePWA/workbox only precaches built assets, not
+       cross-origin CDN requests. Acceptable per the v5 handoff. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <title>ImproWiz</title>
 </head>
 <body>

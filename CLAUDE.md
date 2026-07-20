@@ -14,6 +14,9 @@ It's installable/offline-capable as a PWA.
 - `npm install`, then `npm run dev` (Vite dev server) and open in Chrome or Edge — WebMIDI is not supported
   in Firefox/Safari, and the app shows an in-page banner (`App.svelte`, gated on
   `'requestMIDIAccess' in navigator`) when it's missing.
+- `npm run fetch-samples` (one-time) downloads the Salamander piano samples into `public/salamander/` (not
+  committed). Without it the app still runs but every note falls back to the `src/lib/sound.ts` synth
+  instead of the sampled piano — run it before `npm run dev`/`npm run build` (and in CI before a deploy).
 - `npm test` runs the Vitest suite (`tests/scales.test.ts`, `tests/tracker.test.ts`) against the pure logic
   in `src/lib/scales.ts` and `src/lib/tracker.ts` — both are DOM-free and fully unit-tested.
 - `npm run check` runs `svelte-check` (type-checks `.svelte` + `.ts` files, including rune syntax) —
@@ -89,8 +92,23 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   treat mic and MIDI input interchangeably. Has hand-tuned constants for silence/onset/stability detection
   (`AMPLITUDE_THRESHOLD`, `ATTACK_HOLDOFF_MS`, `NOTE_HOLD_MS`, `NSDF_THRESHOLD`) — read the header comment
   before touching these, they encode specific tradeoffs about attack transients vs. note-decay grace periods.
-- **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`) so clicking the on-screen keyboard produces
-  audible feedback; not used for MIDI/mic-triggered notes (those come from a real instrument).
+- **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`). No longer the primary sound source; it's now
+  only the **fallback** `src/state/audio.svelte.ts` plays while the sampled piano's samples are still
+  loading (immediate feedback on the first keypresses), then the real piano takes over.
+- **`src/state/audio.svelte.ts`** — the sampled acoustic piano (the actual sound source for MIDI + on-screen
+  keys; **mic input stays silent**, since your instrument already makes the sound). Wraps `@tonejs/piano`
+  (Salamander Grand). `noteOn(midi, velocity01)`/`noteOff(midi)` map to the library's `keyDown`/`keyUp`, so
+  **held keys sustain until release** (unlike the old fixed-decay synth). The number of velocity layers is a
+  user setting (`velocities`, persisted to `localStorage` under `improwiz_piano_velocities`, presets
+  `VELOCITY_OPTIONS` = 1/2/4/8) — more layers = more timbral response to how hard you play. The count is
+  fixed at `Piano` construction, so `setVelocities()` disposes and rebuilds the piano + reloads samples
+  (`#loadToken` guards against overlapping reloads). `Piano` is built with `release:false, pedal:false`, so
+  only the per-note velocity layers are needed. `ensureStarted()` resumes the AudioContext (`Tone.start()`)
+  on the first user gesture. Samples are self-hosted under `public/salamander/` (fetched by
+  `scripts/fetch-samples.mjs` → `npm run fetch-samples`; ~32 MB across all 16 layers, not committed by
+  default) and served from our origin so the PWA works offline; `vite.config.ts` lazily runtime-caches them
+  (`CacheFirst`, cache `piano-samples`) rather than precaching. The browser only downloads the layers the
+  current `velocities` setting selects (per `@tonejs/piano`'s `velocitiesMap`).
 - **`src/state/practice.svelte.ts`** — current key/mode selection (root, mode, scale notes, chord,
   derivation, siblings, related scales, characteristic notes) as runes state, plus enabled-scales settings
   (persisted to `localStorage` under `improwiz_enabled_scales`, defaulting to `DEFAULT_ENABLED_SCALES` on

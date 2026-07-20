@@ -1,57 +1,58 @@
 <script lang="ts">
+  import { ROOT_NAMES, getNoteRole, prettifyAccidental, type NoteRole } from '../lib/scales';
   import type { MidiNote, PitchClass } from '../lib/types';
+  import ChordDisplay from './ChordDisplay.svelte';
 
-  // MIDI range 36–96, i.e. C2–C7.
+  // MIDI range 36–96, i.e. C2–C7 (unchanged from the SVG version).
   const MIDI_LOW  = 36;
   const MIDI_HIGH = 96;
-
-  // Key geometry (px)
-  const W_W = 34;   // white key width
-  const W_H = 160;  // white key height
-  const B_W = 22;   // black key width
-  const B_H = 100;  // black key height
 
   const IS_BLACK = new Set([1, 3, 6, 8, 10]);
 
   interface KeyGeom {
     midi: MidiNote;
     pc: PitchClass;
-    x: number;
-    width: number;
-    height: number;
+    left: number;   // % from left edge of the strip
+    width: number;  // % of strip width
+    isC: boolean;
+    octaveLabel: string; // e.g. "C4", only meaningful on C keys
+    noteName: string;    // prettified letter name shown when held
   }
 
+  // Full-width geometry: white keys are equal-width flex-style columns, black
+  // keys are absolutely positioned on top at each white boundary (v5 §4).
   function buildGeometry() {
-    const whiteKeys: KeyGeom[] = [];
-    const blackKeys: KeyGeom[] = [];
+    const whites: KeyGeom[] = [];
+    const blacks: KeyGeom[] = [];
 
-    // Pass 1: white keys, left to right.
-    let whiteIndex = 0;
+    let whiteCount = 0;
     for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
-      const pc = midi % 12;
-      if (IS_BLACK.has(pc)) continue;
-      whiteKeys.push({ midi, pc, x: whiteIndex * W_W, width: W_W - 1, height: W_H }); // 1px gap between white keys
-      whiteIndex++;
+      if (!IS_BLACK.has(midi % 12)) whiteCount++;
     }
+    const whiteW = 100 / whiteCount;
+    const blackW = whiteW * 0.62;
 
-    // Pass 2: black keys, positioned relative to the preceding white key so they
-    // visually overlap the white boundary. Rendered after white keys so they sit on top.
-    whiteIndex = 0;
+    let placed = 0; // whites placed so far — also the boundary for the next black
     for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
       const pc = midi % 12;
+      const octave = Math.floor(midi / 12) - 1;
+      const meta = {
+        midi, pc,
+        isC: pc === 0,
+        octaveLabel: `C${octave}`,
+        noteName: prettifyAccidental(ROOT_NAMES[pc]),
+      };
       if (IS_BLACK.has(pc)) {
-        const prevWhiteX = (whiteIndex - 1) * W_W;
-        const x = prevWhiteX + W_W - Math.floor(B_W / 2);
-        blackKeys.push({ midi, pc, x, width: B_W, height: B_H });
+        blacks.push({ ...meta, left: placed * whiteW - blackW / 2, width: blackW });
       } else {
-        whiteIndex++;
+        whites.push({ ...meta, left: placed * whiteW, width: whiteW });
+        placed++;
       }
     }
-
-    return { whiteKeys, blackKeys, svgWidth: whiteIndex * W_W, svgHeight: W_H };
+    return { whites, blacks };
   }
 
-  const { whiteKeys, blackKeys, svgWidth, svgHeight } = buildGeometry();
+  const { whites, blacks } = buildGeometry();
 
   interface Props {
     scaleNotes: Set<PitchClass>;
@@ -64,6 +65,13 @@
 
   let { scaleNotes, rootPitchClass, characteristicNotes, pressedKeys, onNoteOn, onNoteOff }: Props = $props();
 
+  function roleColor(role: NoteRole): string {
+    return role === 'root'           ? 'var(--n-root)'
+         : role === 'characteristic' ? 'var(--n-tension)'
+         : role === 'scale'          ? 'var(--n-chord)'
+         : 'transparent';
+  }
+
   function handleDown(e: MouseEvent, midi: MidiNote) {
     e.preventDefault();
     onNoteOn(midi);
@@ -71,79 +79,154 @@
 </script>
 
 <section class="keyboard-section" aria-label="Piano keyboard">
-  <div class="keyboard-container">
-    <svg
-      viewBox="0 0 {svgWidth} {svgHeight}"
-      width={svgWidth}
-      height={svgHeight}
-      role="img"
-      aria-label="Piano keyboard C2 to C7"
-    >
-      {#each whiteKeys as key (key.midi)}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <rect
-          x={key.x} y={0} width={key.width} height={key.height} rx={2}
-          class="key white"
-          class:is-scale={scaleNotes.has(key.pc)}
-          class:is-root={key.pc === rootPitchClass}
-          class:is-characteristic={characteristicNotes.has(key.pc)}
-          class:is-pressed={pressedKeys.has(key.midi)}
-          style="cursor: pointer"
-          onmousedown={(e) => handleDown(e, key.midi)}
-          onmouseup={() => onNoteOff(key.midi)}
-          onmouseleave={() => onNoteOff(key.midi)}
-        />
-      {/each}
-      {#each blackKeys as key (key.midi)}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <rect
-          x={key.x} y={0} width={key.width} height={key.height} rx={2}
-          class="key black"
-          class:is-scale={scaleNotes.has(key.pc)}
-          class:is-root={key.pc === rootPitchClass}
-          class:is-characteristic={characteristicNotes.has(key.pc)}
-          class:is-pressed={pressedKeys.has(key.midi)}
-          style="cursor: pointer"
-          onmousedown={(e) => handleDown(e, key.midi)}
-          onmouseup={() => onNoteOff(key.midi)}
-          onmouseleave={() => onNoteOff(key.midi)}
-        />
-      {/each}
-    </svg>
+  <div class="keyboard-header">
+    <ChordDisplay />
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background: var(--n-root)"></span>Root</span>
+      <span class="legend-item"><span class="legend-swatch" style="background: var(--n-tension)"></span>Characteristic</span>
+      <span class="legend-item"><span class="legend-swatch" style="background: var(--n-chord)"></span>Scale</span>
+    </div>
+  </div>
+
+  <div class="keyboard-strip" role="img" aria-label="Piano keyboard C2 to C7">
+    {#each whites as key (key.midi)}
+      {@const role = getNoteRole(key.pc, rootPitchClass, characteristicNotes, scaleNotes)}
+      {@const held = pressedKeys.has(key.midi)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="key white"
+        style="left: {key.left}%; width: {key.width}%"
+        onmousedown={(e) => handleDown(e, key.midi)}
+        onmouseup={() => onNoteOff(key.midi)}
+        onmouseleave={() => onNoteOff(key.midi)}
+      >
+        {#if key.isC}<span class="octave-label">{key.octaveLabel}</span>{/if}
+        {#if held && role}
+          <div class="fill held" style="background: {roleColor(role)}"><span class="held-label">{key.noteName}</span></div>
+        {:else if role}
+          <div class="fill cap" style="background: {roleColor(role)}"></div>
+        {/if}
+      </div>
+    {/each}
+    {#each blacks as key (key.midi)}
+      {@const role = getNoteRole(key.pc, rootPitchClass, characteristicNotes, scaleNotes)}
+      {@const held = pressedKeys.has(key.midi)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="key black"
+        style="left: {key.left}%; width: {key.width}%"
+        onmousedown={(e) => handleDown(e, key.midi)}
+        onmouseup={() => onNoteOff(key.midi)}
+        onmouseleave={() => onNoteOff(key.midi)}
+      >
+        {#if held && role}
+          <div class="fill held" style="background: {roleColor(role)}"><span class="held-label black-label">{key.noteName}</span></div>
+        {:else if role}
+          <div class="fill cap cap-black" style="background: {roleColor(role)}"></div>
+        {/if}
+      </div>
+    {/each}
   </div>
 </section>
 
 <style>
   .keyboard-section {
-    width: 100%;
-    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
     display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* keyboard pinned to the bottom edge */
+  }
+
+  .keyboard-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 24px 6px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font: 600 11px var(--font-body);
+    color: var(--muted);
+  }
+
+  .legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+  }
+
+  /* Full-bleed strip: edge-to-edge, no outer margin/padding, hairline top only. */
+  .keyboard-strip {
+    flex-shrink: 0;
+    position: relative;
+    height: 155px;
+    width: 100%;
+    border-top: 1px solid var(--border);
+  }
+
+  .key {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+  }
+
+  .key.white {
+    background: var(--key-white);
+    border-right: 1px solid var(--key-border);
+  }
+
+  .key.black {
+    height: 62%;
+    background: var(--key-black);
+    border-radius: 0 0 4px 4px;
+    z-index: 3;
+  }
+
+  /* Role coloring is fully edge-to-edge — no rounded insets or padding. */
+  .fill {
+    position: absolute;
+    inset: 0;
+  }
+
+  .cap { opacity: 0.55; }
+  .cap-black { opacity: 0.7; }
+
+  .held {
+    display: flex;
+    align-items: flex-end;
     justify-content: center;
+    padding-bottom: 10px;
   }
 
-  .keyboard-container svg {
-    display: block;
+  .held-label {
+    color: #fff;
+    font: 700 14px var(--font-display);
   }
 
-  /* White keys — base */
-  .key.white { fill: var(--white-key-bg); stroke: #888; stroke-width: 1; }
+  .black .held { padding-bottom: 8px; }
+  .black-label { font-size: 10px; }
 
-  /* Black keys — base */
-  .key.black { fill: var(--black-key-bg); stroke: #333; stroke-width: 1; }
-
-  /* Scale highlight */
-  .key.white.is-scale { fill: color-mix(in srgb, var(--color-scale) 30%, var(--white-key-bg)); }
-  .key.black.is-scale { fill: color-mix(in srgb, var(--color-scale) 55%, var(--black-key-bg)); }
-
-  /* Characteristic note — the degree that differs from the closest known scale.
-     Needs the .white/.black qualifier to match .is-scale's (0,3,0) specificity,
-     and must come after .is-scale so it wins on a note that's both. */
-  .key.white.is-characteristic { fill: color-mix(in srgb, var(--color-characteristic) 45%, var(--white-key-bg)); }
-  .key.black.is-characteristic { fill: color-mix(in srgb, var(--color-characteristic) 65%, var(--black-key-bg)); }
-
-  /* Root — always overrides scale tint */
-  .key.is-root { fill: var(--color-root) !important; }
-
-  /* Pressed state — always brightest */
-  .key.is-pressed { fill: var(--color-pressed) !important; filter: drop-shadow(0 0 6px #fffde7cc); }
+  .octave-label {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font: 700 10px var(--font-body);
+    color: var(--faint);
+    z-index: 4;
+    pointer-events: none;
+  }
 </style>

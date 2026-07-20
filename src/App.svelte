@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import InfoPanel from './components/InfoPanel.svelte';
+  import AnnotationZone from './components/AnnotationZone.svelte';
   import Keyboard from './components/Keyboard.svelte';
-  import StatusBar from './components/StatusBar.svelte';
+  import SettingsDrawer from './components/SettingsDrawer.svelte';
+  import StatusZone from './components/StatusZone.svelte';
+  import TopBar from './components/TopBar.svelte';
   import { initMidi } from './lib/midi';
   import { initMic, type MicController } from './lib/microphone';
-  import { playNote } from './lib/sound';
   import { recordNoteOff, recordNoteOn } from './lib/tracker';
+  import { audio } from './state/audio.svelte';
   import { input } from './state/input.svelte';
   import { practice } from './state/practice.svelte';
   import { score } from './state/score.svelte';
@@ -14,6 +16,7 @@
   const midiSupported = 'requestMIDIAccess' in navigator;
 
   let micController: MicController | null = null;
+  let settingsOpen = $state(false);
 
   function toggleMic() {
     if (micController) {
@@ -38,12 +41,13 @@
       (midi, velocity) => {
         input.press(midi);
         recordNoteOn(midi, velocity);
-        playNote(midi);
+        audio.noteOn(midi, velocity / 127);
         score.refresh();
       },
       (midi) => {
         input.release(midi);
         recordNoteOff(midi);
+        audio.noteOff(midi); // held keys now sustain until release
         score.refresh();
       },
       (name) => input.setMidiStatus(name),
@@ -59,23 +63,21 @@
   </div>
 {/if}
 
-<header class="app-header">
-  <h1>ImproWiz</h1>
-</header>
+<TopBar onToggleMic={toggleMic} onOpenSettings={() => (settingsOpen = true)} />
+<StatusZone />
+<AnnotationZone />
+<Keyboard
+  scaleNotes={practice.scaleNotes}
+  rootPitchClass={practice.rootPitchClass}
+  characteristicNotes={practice.characteristicNotes}
+  pressedKeys={input.pressedKeys}
+  onNoteOn={(midi) => { input.press(midi); audio.noteOn(midi, 0.7); }}
+  onNoteOff={(midi) => { input.release(midi); audio.noteOff(midi); }}
+/>
 
-<main class="app-main">
-  <InfoPanel />
-  <Keyboard
-    scaleNotes={practice.scaleNotes}
-    rootPitchClass={practice.rootPitchClass}
-    characteristicNotes={practice.characteristicNotes}
-    pressedKeys={input.pressedKeys}
-    onNoteOn={(midi) => { input.press(midi); playNote(midi); }}
-    onNoteOff={(midi) => input.release(midi)}
-  />
-</main>
-
-<StatusBar onToggleMic={toggleMic} />
+{#if settingsOpen}
+  <SettingsDrawer onClose={() => (settingsOpen = false)} />
+{/if}
 
 <style>
   .unsupported-banner {
@@ -84,27 +86,5 @@
     text-align: center;
     padding: 0.75rem 1rem;
     font-weight: 600;
-  }
-
-  .app-header {
-    background: var(--color-panel-bg);
-    border-bottom: 1px solid var(--color-border);
-    padding: 0.75rem 1.5rem;
-  }
-
-  .app-header h1 {
-    font-size: 1.6rem;
-    letter-spacing: 0.08em;
-    font-weight: 700;
-    color: #c9d6ff;
-  }
-
-  .app-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2rem;
-    padding: 2rem 1rem;
   }
 </style>

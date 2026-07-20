@@ -1,0 +1,164 @@
+<script lang="ts">
+  import { input } from '../state/input.svelte';
+  import { practice } from '../state/practice.svelte';
+  import { theme } from '../state/theme.svelte';
+
+  interface Props {
+    onToggleMic: () => void;
+    onOpenSettings: () => void;
+  }
+
+  let { onToggleMic, onOpenSettings }: Props = $props();
+
+  // A device/mic is live when the status text isn't the idle default.
+  let connected = $derived(input.micActive || input.displayStatus.startsWith('MIDI:'));
+</script>
+
+<header class="top-bar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <span class="wordmark">ImproWiz</span>
+  </div>
+
+  <div class="divider"></div>
+  <div class="tabs">
+    <span class="tab is-active">Free Play</span>
+  </div>
+
+  <div class="right">
+    <div class="status">
+      <span class="status-dot" class:is-live={connected}></span>
+      <span class="status-text">{input.displayStatus}</span>
+    </div>
+
+    <button
+      class="pill"
+      class:is-active={input.micActive}
+      type="button"
+      title="Toggle microphone pitch detection"
+      onclick={onToggleMic}
+    >🎤 Mic</button>
+
+    <button class="pill primary" type="button" onclick={() => practice.randomize()}>Next scale</button>
+
+    <button class="pill icon" type="button" title="Scale settings" aria-label="Scale settings" onclick={onOpenSettings}>⚙</button>
+
+    <button class="pill" type="button" onclick={() => theme.toggle()}>{theme.dark ? 'Light mode' : 'Dark mode'}</button>
+  </div>
+</header>
+
+<style>
+  .top-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .logo {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .wordmark {
+    font: 700 16px var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  .divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+  }
+
+  .tabs {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .tab {
+    font: 700 13px var(--font-body);
+    color: var(--muted);
+    padding-bottom: 3px;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab.is-active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  .right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--faint);
+  }
+
+  .status-dot.is-live {
+    background: var(--good);
+    animation: iw-pulse 2s infinite;
+  }
+
+  .status-text {
+    font: 600 11px var(--font-body);
+    color: var(--muted);
+  }
+
+  .pill {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    color: var(--ink);
+    font: 700 11px var(--font-body);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .pill:hover { border-color: var(--muted); }
+
+  .pill.icon {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .pill.primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--bg);
+  }
+
+  .pill.primary:hover { filter: brightness(1.08); }
+
+  .pill.is-active {
+    border-color: var(--n-root);
+    color: var(--n-root);
+    animation: iw-pulse 1.6s ease-in-out infinite;
+  }
+</style>
