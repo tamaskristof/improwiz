@@ -25,6 +25,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The ~32 MB Salamander samples aren't committed (see .gitignore), so fetch them before the
+      # build or the deployed site serves 404s for every sample and falls back to the synth.
+      # Cached across runs; fetch-samples skips files already on disk.
+      - uses: actions/cache@v4
+        with:
+          path: public/salamander
+          key: salamander-${{ hashFiles('scripts/fetch-samples.mjs') }}
+      - run: npm run fetch-samples
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
