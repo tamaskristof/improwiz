@@ -11,7 +11,7 @@
 // MidiInput, which `extends EventEmitter` from Node's 'events' (Vite externalizes it to undefined in
 // the browser) and pulls the uninstalled 'webmidi' peer dep. We only need Piano.
 import { Piano } from '@tonejs/piano/build/piano/Piano';
-import { Frequency, Gain, WaveShaper, start as toneStart } from 'tone';
+import { Frequency, Gain, WaveShaper, getContext, start as toneStart } from 'tone';
 import { playNote } from '../lib/sound';
 import type { MidiNote } from '../lib/types';
 
@@ -53,6 +53,9 @@ function softClip(x: number): number {
 const MAX_GAIN = 2;
 const DEFAULT_VOLUME = 0.5; // slider midpoint => gain 1.0, i.e. exactly the HEADROOM_DB level
 
+/** Interactions the browser accepts as the user gesture that unblocks audio. */
+const UNLOCK_EVENTS = ['pointerdown', 'keydown', 'touchstart'] as const;
+
 /** Vite serves public/salamander/ at BASE_URL + 'salamander/' ('/improwiz/salamander/' in prod). */
 const SAMPLES_URL = `${import.meta.env.BASE_URL}salamander/`;
 
@@ -85,6 +88,8 @@ class AudioState {
   loaded = $state(false);
   /** Master volume as a 0–1 slider position (persisted). Scaled by MAX_GAIN to get actual gain. */
   volume = $state(loadVolume());
+  /** True while the browser is blocking audio until the user interacts with the page. */
+  blocked = $state(false);
 
   #piano: Piano | null = null;
   /**
@@ -94,6 +99,8 @@ class AudioState {
    */
   #gain: Gain | null = null;
   #started = false;
+  /** Set while a document-level listener is waiting for the gesture that unblocks audio. */
+  #unlockHandler: (() => void) | null = null;
   /** Bumped on every (re)build so a superseded in-flight load can detect it lost the race. */
   #loadToken = 0;
 
@@ -125,21 +132,64 @@ class AudioState {
   }
 
   /**
-   * Resume the AudioContext and kick off sample loading. Must be triggered from a user gesture
-   * (a MIDI note, a mouse click) — browsers block audio until then. Idempotent.
+   * Resume the AudioContext and kick off sample loading. Idempotent.
+   *
+   * Browsers only allow this from a real user gesture, and **WebMIDI note events do not count as
+   * one** — so playing a MIDI keyboard on a fresh origin leaves the context suspended and drops
+   * every note onto the `playNote` fallback. Chrome leaves a blocked `resume()` promise pending
+   * (it resolves later if a gesture happens) rather than rejecting, so audio does recover if the
+   * user happens to click something — but a MIDI-only player never does, and nothing told them to.
+   * Hence `blocked`, which drives a "click anywhere" banner, plus `armAutoStart()`'s listener so any
+   * interaction reliably starts audio. (Only reproduces in production — on localhost Chrome's Media
+   * Engagement Index usually grants autoplay, which is why this looked fine in dev.)
    */
   ensureStarted(): void {
     if (this.#started) return;
+    this.#armUnlock();
+    if (getContext().state !== 'running') {
+      this.blocked = true; // a gesture is required; the unlock listener will pick it up
+      return;
+    }
+    void toneStart().then(() => this.#onRunning());
+  }
+
+  /**
+   * Arm the page so the first real user interaction anywhere starts audio. Call this once on mount:
+   * a MIDI-only player may otherwise never produce a gesture the browser accepts.
+   */
+  armAutoStart(): void {
+    this.#armUnlock();
+  }
+
+  #armUnlock(): void {
+    if (this.#unlockHandler || this.#started) return;
+    const handler = () => void toneStart().then(() => this.#onRunning());
+    this.#unlockHandler = handler;
+    // Capture phase, so this runs before the app's own mousedown handlers on the SVG keys.
+    for (const ev of UNLOCK_EVENTS) document.addEventListener(ev, handler, { capture: true });
+  }
+
+  #onRunning(): void {
+    if (this.#started || getContext().state !== 'running') return;
     this.#started = true;
-    void toneStart().then(() => this.#build());
+    this.blocked = false;
+    if (this.#unlockHandler) {
+      for (const ev of UNLOCK_EVENTS) {
+        document.removeEventListener(ev, this.#unlockHandler, { capture: true });
+      }
+      this.#unlockHandler = null;
+    }
+    void this.#build();
   }
 
   noteOn(midi: MidiNote, velocity01: number): void {
     this.ensureStarted();
     if (this.#piano && this.loaded) {
       this.#piano.keyDown({ note: midiToNote(midi), velocity: clamp01(velocity01) });
-    } else {
-      playNote(midi); // samples still loading — fall back to the synth for immediate feedback
+    } else if (!this.blocked) {
+      // Samples still loading — fall back to the synth for immediate feedback. Skipped while
+      // blocked: its AudioContext is blocked too, so it would only log "not allowed to start".
+      playNote(midi);
     }
   }
 

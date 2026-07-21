@@ -37,6 +37,9 @@
 
   // Only MIDI feeds the tracker — mouse clicks and mic input light keys but don't score.
   onMount(() => {
+    // MIDI note events aren't a user gesture, so audio can't start from playing alone.
+    audio.armAutoStart();
+
     initMidi(
       (midi, velocity) => {
         input.press(midi);
@@ -63,6 +66,12 @@
   </div>
 {/if}
 
+{#if audio.blocked}
+  <div class="audio-banner">
+    <p>Click anywhere to enable sound — your browser blocks audio until you interact with the page.</p>
+  </div>
+{/if}
+
 <TopBar onToggleMic={toggleMic} onOpenSettings={() => (settingsOpen = true)} />
 <StatusZone />
 <AnnotationZone />
@@ -83,6 +92,14 @@
   .unsupported-banner {
     background: #7b1e1e;
     color: #fdd;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+  }
+
+  .audio-banner {
+    background: #6b4a12;
+    color: #fde9c4;
     text-align: center;
     padding: 0.75rem 1rem;
     font-weight: 600;

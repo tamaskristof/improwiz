@@ -119,8 +119,15 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   so nothing downstream can push back over full scale, and the `#gain`/shaper pair is created once and
   deliberately outlives the piano rebuilds `setVelocities()` performs. `volume` is a 0–1 slider position
   (persisted under `improwiz_piano_volume`) scaled by `MAX_GAIN` = 2, so the top of the slider is +6 dB and
-  trades transparency for loudness — the shaper keeps that bounded (measured 0.89 on a 6-note chord). `ensureStarted()` resumes the AudioContext (`Tone.start()`)
-  on the first user gesture. Samples are self-hosted under `public/salamander/` (fetched by
+  trades transparency for loudness — the shaper keeps that bounded (measured 0.89 on a 6-note chord).
+  `ensureStarted()` resumes the AudioContext (`Tone.start()`), but **WebMIDI note events are not a user
+  gesture**, so playing a MIDI keyboard can't start audio by itself — on a fresh origin the context stays
+  suspended and every note falls through to the `playNote` synth. `armAutoStart()` (called once from
+  `App.svelte`'s `onMount`) therefore listens for the first `pointerdown`/`keydown`/`touchstart` anywhere
+  on the page, and `blocked` drives a "click anywhere to enable sound" banner so a MIDI-only player knows
+  why it's silent. This **only reproduces in production**: on localhost Chrome's Media Engagement Index
+  usually grants autoplay, so dev testing won't catch a regression here — drive it headless with
+  `--autoplay-policy=document-user-activation-required`. Samples are self-hosted under `public/salamander/` (fetched by
   `scripts/fetch-samples.mjs` → `npm run fetch-samples`; ~32 MB across all 16 layers, not committed by
   default) and served from our origin so the PWA works offline; `vite.config.ts` lazily runtime-caches them
   (`CacheFirst`, cache `piano-samples`) rather than precaching. The browser only downloads the layers the
