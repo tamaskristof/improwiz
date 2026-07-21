@@ -5,6 +5,7 @@
   import SettingsDrawer from './components/SettingsDrawer.svelte';
   import StatusZone from './components/StatusZone.svelte';
   import TopBar from './components/TopBar.svelte';
+  import { initComputerKeys } from './lib/computerKeys';
   import { initMidi } from './lib/midi';
   import { initMic, type MicController } from './lib/microphone';
   import { recordNoteOff, recordNoteOn } from './lib/tracker';
@@ -35,28 +36,34 @@
     );
   }
 
-  // Only MIDI feeds the tracker — mouse clicks and mic input light keys but don't score.
+  // The scored input path, shared by MIDI and the computer keyboard: both deliver real note-on/
+  // note-off pairs with honest durations, which is what tracker.ts's duration-weighted scoring needs.
+  // Mouse clicks and mic input light keys but don't score.
+  function playNoteOn(midi: number, velocity: number) {
+    input.press(midi);
+    recordNoteOn(midi, velocity);
+    audio.noteOn(midi, velocity / 127);
+    score.refresh();
+  }
+
+  function playNoteOff(midi: number) {
+    input.release(midi);
+    recordNoteOff(midi);
+    audio.noteOff(midi); // held keys now sustain until release
+    score.refresh();
+  }
+
   onMount(() => {
     // MIDI note events aren't a user gesture, so audio can't start from playing alone.
     audio.armAutoStart();
 
-    initMidi(
-      (midi, velocity) => {
-        input.press(midi);
-        recordNoteOn(midi, velocity);
-        audio.noteOn(midi, velocity / 127);
-        score.refresh();
-      },
-      (midi) => {
-        input.release(midi);
-        recordNoteOff(midi);
-        audio.noteOff(midi); // held keys now sustain until release
-        score.refresh();
-      },
-      (name) => input.setMidiStatus(name),
-    );
+    initMidi(playNoteOn, playNoteOff, (name) => input.setMidiStatus(name));
+
+    const keys = initComputerKeys(playNoteOn, playNoteOff, (base) => input.setKeyboardOctaveBase(base));
 
     practice.randomize();
+
+    return () => keys.stop();
   });
 </script>
 

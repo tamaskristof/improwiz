@@ -1,17 +1,24 @@
 // src/state/input.svelte.ts — pressed keys + MIDI/mic status
 
 import { SvelteSet } from 'svelte/reactivity';
+import { DEFAULT_BASE_MIDI } from '../lib/computerKeys';
 import type { MidiNote } from '../lib/types';
+
+/** Idle text: doubles as the hint that the computer keyboard is playable without hardware. */
+const NO_MIDI_STATUS = 'No MIDI — play with your computer keyboard';
 
 class InputState {
   pressedKeys = new SvelteSet<MidiNote>();
 
+  /** MIDI note the computer keyboard's lowest key currently plays (see lib/computerKeys.ts). */
+  keyboardOctaveBase = $state<MidiNote>(DEFAULT_BASE_MIDI);
+
   /** Text shown in the status bar — either MIDI status or mic status (mic takes over while active). */
-  displayStatus = $state('No MIDI device detected');
+  displayStatus = $state(NO_MIDI_STATUS);
   micActive = $state(false);
 
   // Restored when mic stops, so a MIDI hot-plug event during mic use isn't lost.
-  private lastMidiStatus = 'No MIDI device detected';
+  private lastMidiStatus = NO_MIDI_STATUS;
 
   press(midi: MidiNote): void {
     this.pressedKeys.add(midi);
@@ -21,8 +28,12 @@ class InputState {
     this.pressedKeys.delete(midi);
   }
 
+  setKeyboardOctaveBase(midi: MidiNote): void {
+    this.keyboardOctaveBase = midi;
+  }
+
   setMidiStatus(deviceName: string | null): void {
-    this.lastMidiStatus = deviceName ? `MIDI: ${deviceName}` : 'No MIDI device detected';
+    this.lastMidiStatus = deviceName ? `MIDI: ${deviceName}` : NO_MIDI_STATUS;
     if (!this.micActive) this.displayStatus = this.lastMidiStatus;
   }
 

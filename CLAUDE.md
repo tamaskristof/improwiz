@@ -24,12 +24,13 @@ It's installable/offline-capable as a PWA.
 - `npm run build` / `npm run preview` — production build (base path `/improwiz/` for GitHub Pages) and a
   local server to test it. `.github/workflows/deploy.yml` builds and deploys `dist/` to GitHub Pages on
   every push to `main` (repo Pages source must be set to "GitHub Actions").
-- No MIDI hardware needed to test manually — the SVG keyboard keys are clickable and fire the same
-  `onNoteOn`/`onNoteOff` callback shape as real MIDI/microphone input. The exception is run scoring, which
-  is MIDI-only by design; drive it from the DevTools console via the dev-only debug handle in `src/main.ts`
-  (`window.improwiz`): `improwiz.startRun({scaleNotes: improwiz.getScaleNotes(0,'Ionian'), rootPitchClass: 0,
-  chordNotes: [0,4,7]})`, then `improwiz.recordNoteOn`/`recordNoteOff`/`endRun`. The same handle exposes
-  `improwiz.audio` for firing dense chords at full velocity to check for output clipping.
+- No MIDI hardware needed to test manually — the computer keyboard plays (`src/lib/computerKeys.ts`,
+  always on) and the SVG keyboard keys are clickable; both fire the same `onNoteOn`/`onNoteOff` callback
+  shape as real MIDI/microphone input. The computer keyboard also feeds run scoring, so that's testable
+  without hardware too; alternatively drive it from the DevTools console via the dev-only debug handle in
+  `src/main.ts` (`window.improwiz`): `improwiz.startRun({scaleNotes: improwiz.getScaleNotes(0,'Ionian'),
+  rootPitchClass: 0, chordNotes: [0,4,7]})`, then `improwiz.recordNoteOn`/`recordNoteOff`/`endRun`. The
+  same handle exposes `improwiz.audio` for firing dense chords at full velocity to check for clipping.
 - Microphone-based note detection can be tested with a real instrument/voice through the "🎤 Mic" button.
 
 ## Architecture
@@ -76,9 +77,11 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `src/state/practice.svelte.ts` is the run boundary — it banks the previous run's grade (via
   `src/state/score.svelte.ts`'s `beginRun()`), then starts a new one. Summaries carry a `graded` flag rather
   than being withheld: accuracy is meaningful from the first note, but a letter grade off two notes isn't, so
-  `score`/`grade` are null until `MIN_NOTES_TO_GRADE`. **Only MIDI feeds the tracker**; mic and on-screen
-  clicks light keys but don't score, because mic pitch detection emits spurious notes on attack transients
-  and clicking is for exploring, not playing. Scoring is duration-weighted in-scale accuracy (a held wrong
+  `score`/`grade` are null until `MIN_NOTES_TO_GRADE`. **Only MIDI and the computer keyboard feed the
+  tracker** — both deliver real note-on/note-off pairs with honest durations, which is exactly what the
+  duration-weighted scoring below needs. Mic and on-screen clicks light keys but don't score, because mic
+  pitch detection emits spurious notes on attack transients and clicking is for exploring, not playing.
+  Scoring is duration-weighted in-scale accuracy (a held wrong
   note hurts, a brushed one barely does) with chromatic passing tones forgiven, plus low-weight chord-tone
   and note-variety bonuses. The tuned constants at the top (`PASSING_MAX_MS`, `MAX_NOTE_MS`,
   `LANDING_MIN_MS`, `MIN_NOTES_TO_GRADE`) and the score weights encode deliberate tradeoffs — read the
@@ -87,6 +90,20 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   to all inputs, re-attaches on `onstatechange` (hot-plug), and parses raw MIDI bytes (0x90/0x80) into
   note-on/note-off calls. Unsupported-browser detection is the caller's job now (`App.svelte` checks
   `'requestMIDIAccess' in navigator` directly and renders the banner reactively).
+- **`src/lib/computerKeys.ts`** — the computer keyboard as a playable, *scored* input source, so a laptop
+  with no hardware is a real practice setup. `initComputerKeys()` mirrors midi.ts's callback signature.
+  Layout is the tracker/FL two-row one (`Z X C V B N M , . /` + `Q W E R T Y U I O P`, blacks on the row
+  above each), giving ~2.5 octaves at once; `-`/`=` shift by an octave. It is **always on**, not gated on
+  "no MIDI device" — gating would yank the keys away mid-phrase when a controller hot-plugs. Keyed by
+  `KeyboardEvent.code`, **never `.key`**: `.code` is the physical key position, so the layout survives
+  QWERTZ/AZERTY, where `.key` would swap Z/Y and move every punctuation key. Three stuck-note guards worth
+  keeping: `e.repeat` is ignored (auto-repeat would machine-gun note-ons); a `code -> MidiNote` map records
+  what each held key actually started, so releases go through it rather than recomputing from the current
+  base (otherwise shifting octave mid-hold strands the old note); and `blur`/`visibilitychange` release
+  everything, since the browser delivers no keyup once focus leaves the page. `MIN_BASE_MIDI`/
+  `MAX_BASE_MIDI` are both C's and shifts are refused rather than clamped at the ends, so the base is
+  always a C and the row picture reads the same at every octave. Pure exports covered by
+  `tests/computerKeys.test.ts`.
 - **`src/lib/microphone.ts`** — `initMic()` implements real-time pitch detection from the mic using the
   **McLeod Pitch Method** (normalized square difference function, not raw autocorrelation, to avoid octave
   errors). Deliberately mirrors midi.ts's `(onNoteOn, onNoteOff, onStatusChange)` signature so callers can
@@ -161,10 +178,11 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   per-component rather than hoisted into a shared global class, to preserve the original CSS exactly (a few
   visually-similar `.label` usages in the original actually had different font sizes depending on context —
   check before "deduplicating" any of these).
-- **`src/App.svelte`** — the composition root: wires `initMidi`/`initMic` callbacks into `input`/`score`
-  state, mounts `InfoPanel` + `Keyboard` + `StatusBar`, and calls `practice.randomize()` once on mount. Only
-  MIDI feeds the tracker — mouse clicks and mic input light keys via `input.press`/`release` but never call
-  `recordNoteOn`/`recordNoteOff`.
+- **`src/App.svelte`** — the composition root: wires `initMidi`/`initComputerKeys`/`initMic` callbacks into
+  `input`/`score` state, mounts `InfoPanel` + `Keyboard` + `StatusBar`, and calls `practice.randomize()`
+  once on mount. MIDI and the computer keyboard share one `playNoteOn`/`playNoteOff` pair — the scored path
+  is identical by design, so it's literally the same code. Mouse clicks and mic input light keys via
+  `input.press`/`release` but never call `recordNoteOn`/`recordNoteOff`.
 
 ## Key conventions worth knowing
 

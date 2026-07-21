@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ROOT_NAMES, getNoteRole, prettifyAccidental, type NoteRole } from '../lib/scales';
   import type { MidiNote, PitchClass } from '../lib/types';
+  import { input } from '../state/input.svelte';
   import ChordDisplay from './ChordDisplay.svelte';
 
   // MIDI range 36–96, i.e. C2–C7 (unchanged from the SVG version).
@@ -72,6 +73,9 @@
          : 'transparent';
   }
 
+  // The computer-keyboard base is always a C (see lib/computerKeys.ts), so its octave names it.
+  let keyboardOctaveLabel = $derived(`C${Math.floor(input.keyboardOctaveBase / 12) - 1}`);
+
   function handleDown(e: MouseEvent, midi: MidiNote) {
     e.preventDefault();
     onNoteOn(midi);
@@ -82,6 +86,9 @@
   <div class="keyboard-header">
     <ChordDisplay />
     <div class="legend">
+      <span class="legend-item" title="Play with your computer keyboard: Z X C V B N M and Q W E R T Y U">
+        ⌨ {keyboardOctaveLabel}<span class="legend-hint">− / = octave</span>
+      </span>
       <span class="legend-item"><span class="legend-swatch" style="background: var(--n-root)"></span>Root</span>
       <span class="legend-item"><span class="legend-swatch" style="background: var(--n-tension)"></span>Characteristic</span>
       <span class="legend-item"><span class="legend-swatch" style="background: var(--n-chord)"></span>Scale</span>
@@ -158,6 +165,11 @@
     gap: 5px;
     font: 600 11px var(--font-body);
     color: var(--muted);
+  }
+
+  .legend-hint {
+    color: var(--faint);
+    font-weight: 600;
   }
 
   .legend-swatch {
