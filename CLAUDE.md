@@ -28,7 +28,8 @@ It's installable/offline-capable as a PWA.
   `onNoteOn`/`onNoteOff` callback shape as real MIDI/microphone input. The exception is run scoring, which
   is MIDI-only by design; drive it from the DevTools console via the dev-only debug handle in `src/main.ts`
   (`window.improwiz`): `improwiz.startRun({scaleNotes: improwiz.getScaleNotes(0,'Ionian'), rootPitchClass: 0,
-  chordNotes: [0,4,7]})`, then `improwiz.recordNoteOn`/`recordNoteOff`/`endRun`.
+  chordNotes: [0,4,7]})`, then `improwiz.recordNoteOn`/`recordNoteOff`/`endRun`. The same handle exposes
+  `improwiz.audio` for firing dense chords at full velocity to check for output clipping.
 - Microphone-based note detection can be tested with a real instrument/voice through the "🎤 Mic" button.
 
 ## Architecture
@@ -94,7 +95,9 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   before touching these, they encode specific tradeoffs about attack transients vs. note-decay grace periods.
 - **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`). No longer the primary sound source; it's now
   only the **fallback** `src/state/audio.svelte.ts` plays while the sampled piano's samples are still
-  loading (immediate feedback on the first keypresses), then the real piano takes over.
+  loading (immediate feedback on the first keypresses), then the real piano takes over. It runs on its own
+  `AudioContext`, so it can't route through the master soft-clipper — its per-note peak gain is kept low
+  (0.18) so simultaneous notes don't clip on their own.
 - **`src/state/audio.svelte.ts`** — the sampled acoustic piano (the actual sound source for MIDI + on-screen
   keys; **mic input stays silent**, since your instrument already makes the sound). Wraps `@tonejs/piano`
   (Salamander Grand). `noteOn(midi, velocity01)`/`noteOff(midi)` map to the library's `keyDown`/`keyUp`, so
@@ -103,7 +106,20 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `VELOCITY_OPTIONS` = 1/2/4/8) — more layers = more timbral response to how hard you play. The count is
   fixed at `Piano` construction, so `setVelocities()` disposes and rebuilds the piano + reloads samples
   (`#loadToken` guards against overlapping reloads). `Piano` is built with `release:false, pedal:false`, so
-  only the per-note velocity layers are needed. `ensureStarted()` resumes the AudioContext (`Tone.start()`)
+  only the per-note velocity layers are needed. The output chain is **piano → user `Gain` → soft-clip
+  `WaveShaper` → destination**, with `piano.strings` trimmed to `HEADROOM_DB` (-12). This exists because
+  `@tonejs/piano` bakes `volume: 3` dB into every velocity-layer `Sampler` and sums notes at unity gain, so
+  the raw output hard-clips Web Audio's destination (±1.0) even on a *single* note at full velocity —
+  measured peaks were 1.33 / 2.44 / 3.35 for 1 / 4 / 6 notes, audible as crackle. At -12 dB a 6-note
+  voicing lands ~0.82, so the shaper is a safety net rather than an effect. **Don't swap the shaper for a
+  compressor or `Tone.Limiter`**: those have a 3 ms attack, so the piano's attack transient — the entire
+  problem — passes through before gain reduction engages, and `Tone.Limiter` additionally never overrides
+  `Compressor`'s default `knee: 30` dB so it barely acts near 0 dBFS (measured: it left a 6-note chord at
+  1.78). The `WaveShaper` is sample-accurate and cannot exceed its curve's range. The shaper stays **last**
+  so nothing downstream can push back over full scale, and the `#gain`/shaper pair is created once and
+  deliberately outlives the piano rebuilds `setVelocities()` performs. `volume` is a 0–1 slider position
+  (persisted under `improwiz_piano_volume`) scaled by `MAX_GAIN` = 2, so the top of the slider is +6 dB and
+  trades transparency for loudness — the shaper keeps that bounded (measured 0.89 on a 6-note chord). `ensureStarted()` resumes the AudioContext (`Tone.start()`)
   on the first user gesture. Samples are self-hosted under `public/salamander/` (fetched by
   `scripts/fetch-samples.mjs` → `npm run fetch-samples`; ~32 MB across all 16 layers, not committed by
   default) and served from our origin so the PWA works offline; `vite.config.ts` lazily runtime-caches them

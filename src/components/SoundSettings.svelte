@@ -24,6 +24,24 @@
       {#if !audio.loaded}<span class="loading">Loading samples…</span>{/if}
     </p>
   </div>
+
+  <div class="field">
+    <label class="field-label" for="volume">Volume</label>
+    <input
+      id="volume"
+      class="volume-slider"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value={audio.volume}
+      oninput={(e) => audio.setVolume(e.currentTarget.valueAsNumber)}
+    />
+    <p class="field-hint">
+      The piano is deliberately quiet so chords stay clean. Turning this past halfway gets louder but
+      starts to saturate dense chords.
+    </p>
+  </div>
 </div>
 
 <style>
@@ -65,6 +83,12 @@
   }
 
   .velocity-option input[type="radio"] {
+    accent-color: var(--n-root);
+    cursor: pointer;
+  }
+
+  .volume-slider {
+    width: 100%;
     accent-color: var(--n-root);
     cursor: pointer;
   }
