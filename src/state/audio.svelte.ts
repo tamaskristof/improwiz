@@ -202,6 +202,16 @@ class AudioState {
     this.#piano.keyUp({ note: midiToNote(midi) });
   }
 
+  /**
+   * Panic: silence everything currently sounding, on both the piano and the fallback synth. This is
+   * the backstop layer — it doesn't consult any note bookkeeping, so it still works when a missing
+   * note-off has left the app's own pressed-key state out of sync with what's audible.
+   */
+  allNotesOff(): void {
+    stopAllNotes();
+    this.#piano?.stopAll();
+  }
+
   /** Set master volume from a 0–1 slider position: persist and apply live (no rebuild needed). */
   setVolume(v: number): void {
     const clamped = clamp01(v);

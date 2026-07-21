@@ -66,11 +66,14 @@
 
   let { scaleNotes, rootPitchClass, characteristicNotes, pressedKeys, onNoteOn, onNoteOff }: Props = $props();
 
+  // A held note outside the scale gets the neutral --n-avoid grey rather than a fourth accent hue
+  // (app.css forbids one) — it reads as "off the map", not as an error. Only ever seen on `.held`;
+  // the unheld `.cap` branch is gated on `role` being non-null.
   function roleColor(role: NoteRole): string {
     return role === 'root'           ? 'var(--n-root)'
          : role === 'characteristic' ? 'var(--n-tension)'
          : role === 'scale'          ? 'var(--n-chord)'
-         : 'transparent';
+         : 'var(--n-avoid)';
   }
 
   // The computer-keyboard base is always a C (see lib/computerKeys.ts), so its octave names it.
@@ -108,8 +111,8 @@
         onmouseleave={() => onNoteOff(key.midi)}
       >
         {#if key.isC}<span class="octave-label">{key.octaveLabel}</span>{/if}
-        {#if held && role}
-          <div class="fill held" style="background: {roleColor(role)}"><span class="held-label">{key.noteName}</span></div>
+        {#if held}
+          <div class="fill held" class:avoid={!role} style="background: {roleColor(role)}"><span class="held-label">{key.noteName}</span></div>
         {:else if role}
           <div class="fill cap" style="background: {roleColor(role)}"></div>
         {/if}
@@ -126,8 +129,8 @@
         onmouseup={() => onNoteOff(key.midi)}
         onmouseleave={() => onNoteOff(key.midi)}
       >
-        {#if held && role}
-          <div class="fill held" style="background: {roleColor(role)}"><span class="held-label black-label">{key.noteName}</span></div>
+        {#if held}
+          <div class="fill held" class:avoid={!role} style="background: {roleColor(role)}"><span class="held-label black-label">{key.noteName}</span></div>
         {:else if role}
           <div class="fill cap cap-black" style="background: {roleColor(role)}"></div>
         {/if}
@@ -215,6 +218,10 @@
 
   .cap { opacity: 0.55; }
   .cap-black { opacity: 0.7; }
+
+  /* Out-of-scale: present and readable, but quieter than a scale tone so it never out-shouts the
+     colouring you're actually practising against. */
+  .held.avoid { opacity: 0.8; }
 
   .held {
     display: flex;

@@ -5,10 +5,11 @@
 
   interface Props {
     onToggleMic: () => void;
+    onPanic: () => void;
     onOpenSettings: () => void;
   }
 
-  let { onToggleMic, onOpenSettings }: Props = $props();
+  let { onToggleMic, onPanic, onOpenSettings }: Props = $props();
 
   // A device/mic is live when the status text isn't the idle default.
   let connected = $derived(input.micActive || input.displayStatus.startsWith('MIDI:'));
@@ -30,6 +31,13 @@
       <span class="status-dot" class:is-live={connected}></span>
       <span class="status-text">{input.displayStatus}</span>
     </div>
+
+    <button
+      class="pill"
+      type="button"
+      title="Silence all notes (Esc)"
+      onclick={onPanic}
+    >⏹ Panic</button>
 
     <button
       class="pill"

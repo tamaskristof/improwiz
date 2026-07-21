@@ -5,7 +5,7 @@
   import SettingsDrawer from './components/SettingsDrawer.svelte';
   import StatusZone from './components/StatusZone.svelte';
   import TopBar from './components/TopBar.svelte';
-  import { initComputerKeys } from './lib/computerKeys';
+  import { initComputerKeys, type ComputerKeysController } from './lib/computerKeys';
   import { initMidi } from './lib/midi';
   import { initMic, type MicController } from './lib/microphone';
   import { recordNoteOff, recordNoteOn } from './lib/tracker';
@@ -17,6 +17,7 @@
   const midiSupported = 'requestMIDIAccess' in navigator;
 
   let micController: MicController | null = null;
+  let computerKeys: ComputerKeysController | null = null;
   let settingsOpen = $state(false);
 
   function toggleMic() {
@@ -53,17 +54,39 @@
     score.refresh();
   }
 
+  /**
+   * Release everything, everywhere. Reachable from Esc, the top-bar pill, the controller's own
+   * All Notes Off / All Sound Off, and a device disconnect — any of which can otherwise leave a note
+   * ringing with no note-off ever coming.
+   *
+   * Deliberately not a run boundary: playNoteOff records the note-offs, so held durations finalize
+   * honestly and the run in progress carries on. "Next scale" stays the only thing that ends a run.
+   */
+  function panic() {
+    // First, so its own notes leave input.pressedKeys before the sweep below and aren't released twice.
+    computerKeys?.releaseAll();
+    for (const midi of [...input.pressedKeys]) playNoteOff(midi);
+    // Backstop: silences anything still sounding that pressedKeys never knew about.
+    audio.allNotesOff();
+  }
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (settingsOpen) settingsOpen = false; // the drawer wins Esc while it's open
+    else panic();
+  }
+
   onMount(() => {
     // MIDI note events aren't a user gesture, so audio can't start from playing alone.
     audio.armAutoStart();
 
-    initMidi(playNoteOn, playNoteOff, (name) => input.setMidiStatus(name));
+    initMidi(playNoteOn, playNoteOff, (name) => input.setMidiStatus(name), panic);
 
-    const keys = initComputerKeys(playNoteOn, playNoteOff, (base) => input.setKeyboardOctaveBase(base));
+    computerKeys = initComputerKeys(playNoteOn, playNoteOff, (base) => input.setKeyboardOctaveBase(base));
 
     practice.randomize();
 
-    return () => keys.stop();
+    return () => computerKeys?.stop();
   });
 </script>
 
@@ -79,7 +102,9 @@
   </div>
 {/if}
 
-<TopBar onToggleMic={toggleMic} onOpenSettings={() => (settingsOpen = true)} />
+<svelte:window onkeydown={handleWindowKeydown} />
+
+<TopBar onToggleMic={toggleMic} onPanic={panic} onOpenSettings={() => (settingsOpen = true)} />
 <StatusZone />
 <AnnotationZone />
 <Keyboard

@@ -87,9 +87,14 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `LANDING_MIN_MS`, `MIN_NOTES_TO_GRADE`) and the score weights encode deliberate tradeoffs — read the
   comments before changing them. Covered by `tests/tracker.test.ts` (mocks `performance.now()`).
 - **`src/lib/midi.ts`** — `initMidi()` wraps `navigator.requestMIDIAccess`, attaches `midimessage` listeners
-  to all inputs, re-attaches on `onstatechange` (hot-plug), and parses raw MIDI bytes (0x90/0x80) into
-  note-on/note-off calls. Unsupported-browser detection is the caller's job now (`App.svelte` checks
-  `'requestMIDIAccess' in navigator` directly and renders the banner reactively).
+  to all inputs, and re-attaches on `onstatechange` (hot-plug). Byte parsing lives in the exported pure
+  `parseMidiMessage()` (covered by `tests/midi.test.ts`), so the rules are testable without hardware:
+  0x90/0x80 → note-on/note-off, **0x90 with velocity 0 → note-off** (many controllers never send 0x80 at
+  all, and missing this is the classic stuck-note bug), and **0xB0 CC 120/123** (All Sound Off / All Notes
+  Off) → `onPanic`. The channel nibble is deliberately ignored — the app is monotimbral. `onPanic` also
+  fires when an input port goes `disconnected`, since a controller unplugged mid-chord never sends the
+  note-offs for what it was holding. Unsupported-browser detection is the caller's job (`App.svelte`
+  checks `'requestMIDIAccess' in navigator` directly and renders the banner reactively).
 - **`src/lib/computerKeys.ts`** — the computer keyboard as a playable, *scored* input source, so a laptop
   with no hardware is a real practice setup. `initComputerKeys()` mirrors midi.ts's callback signature.
   Layout is the tracker/FL two-row one (`Z X C V B N M , . /` + `Q W E R T Y U I O P`, blacks on the row
@@ -123,7 +128,10 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
 - **`src/state/audio.svelte.ts`** — the sampled acoustic piano (the actual sound source for MIDI + on-screen
   keys; **mic input stays silent**, since your instrument already makes the sound). Wraps `@tonejs/piano`
   (Salamander Grand). `noteOn(midi, velocity01)`/`noteOff(midi)` map to the library's `keyDown`/`keyUp`, so
-  **held keys sustain until release** (unlike the old fixed-decay synth). The number of velocity layers is a
+  **held keys sustain until release** (unlike the old fixed-decay synth). `allNotesOff()` is the panic
+  backstop — `Piano.stopAll()` plus the fallback synth's `stopAllNotes()`, consulting no note bookkeeping
+  of its own, so it still silences things when a missing note-off has desynced `input.pressedKeys` from
+  what's actually audible. The number of velocity layers is a
   user setting (`velocities`, persisted to `localStorage` under `improwiz_piano_velocities`, presets
   `VELOCITY_OPTIONS` = 1/2/4/8) — more layers = more timbral response to how hard you play. The count is
   fixed at `Piano` construction, so `setVelocities()` disposes and rebuilds the piano + reloads samples
@@ -171,7 +179,10 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   white-key geometry computed once, then black keys `{#each}`-ed after them in the same `<svg>` so they
   paint on top. `class:is-scale`/`is-root`/`is-characteristic`/`is-pressed` are bound directly to derived
   set-membership — there's no DOM lookup map to maintain (the old `keyElements` Map is gone; Svelte owns the
-  element↔state binding).
+  element↔state binding). A **held** key always renders its fill, including one outside the scale, which
+  gets the neutral `--n-avoid` grey at `opacity: 0.8` (`.held.avoid`) — `app.css` forbids a fourth accent
+  hue, so grey rather than a red, and it reads as "off the map" instead of as an error. It used to render
+  nothing at all for out-of-scale notes, which was indistinguishable from the key not registering.
 - **`src/components/InfoPanel.svelte`** + children (`ScaleDisplay`, `FlavorCard`, `SiblingChips`,
   `RelatedScales`, `ScaleSettings`, `RunScoreCard`) — each owns its own scoped `<style>` block carved out of
   the old single `style.css`; some small rules (e.g. a `.label` style) are intentionally duplicated
@@ -182,7 +193,13 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `input`/`score` state, mounts `InfoPanel` + `Keyboard` + `StatusBar`, and calls `practice.randomize()`
   once on mount. MIDI and the computer keyboard share one `playNoteOn`/`playNoteOff` pair — the scored path
   is identical by design, so it's literally the same code. Mouse clicks and mic input light keys via
-  `input.press`/`release` but never call `recordNoteOn`/`recordNoteOff`.
+  `input.press`/`release` but never call `recordNoteOn`/`recordNoteOff`. Also owns `panic()` — release
+  everything, reachable from Esc, the top-bar ⏹ pill, the controller's own All Notes Off, and a device
+  disconnect. It calls `computerKeys.releaseAll()` *first* so those notes leave `input.pressedKeys` before
+  the sweep over what's left, then `audio.allNotesOff()` as the backstop for anything `pressedKeys` never
+  knew about. Deliberately **not** a run boundary: it records the note-offs, so held durations finalize
+  honestly and the run continues — `practice.randomize()` stays the only thing that ends a run. Esc closes
+  the settings drawer when it's open and only panics otherwise.
 
 ## Key conventions worth knowing
 
