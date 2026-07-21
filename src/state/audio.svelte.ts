@@ -12,7 +12,7 @@
 // the browser) and pulls the uninstalled 'webmidi' peer dep. We only need Piano.
 import { Piano } from '@tonejs/piano/build/piano/Piano';
 import { Frequency, Gain, WaveShaper, getContext, start as toneStart } from 'tone';
-import { playNote } from '../lib/sound';
+import { playNote, stopAllNotes, stopNote } from '../lib/sound';
 import type { MidiNote } from '../lib/types';
 
 const LS_KEY = 'improwiz_piano_velocities';
@@ -129,6 +129,9 @@ class AudioState {
     this.#piano?.dispose();
     this.#piano = piano;
     this.loaded = true;
+    // Hand over cleanly: anything the fallback synth is still ringing would otherwise sound
+    // underneath the piano until its fixed decay ran out.
+    stopAllNotes();
   }
 
   /**
@@ -194,6 +197,7 @@ class AudioState {
   }
 
   noteOff(midi: MidiNote): void {
+    stopNote(midi); // no-op unless the fallback synth is the one holding this note
     if (!this.#piano || !this.loaded) return;
     this.#piano.keyUp({ note: midiToNote(midi) });
   }

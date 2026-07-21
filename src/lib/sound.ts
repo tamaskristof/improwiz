@@ -16,9 +16,41 @@ function midiToFreq(midi: MidiNote): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
+/** Notes currently sounding, so they can be released early — see stopNote(). */
+const active = new Map<MidiNote, { osc1: OscillatorNode; osc2: OscillatorNode; gain: GainNode }>();
+
+const RELEASE_S = 0.06;
+
+/**
+ * Damp a sounding note. Needed because this synth is only a stand-in for the sampled piano while its
+ * samples load: without it, notes were fire-and-forget for a fixed 1.8s regardless of key release,
+ * so any still ringing when the piano took over kept sounding *underneath* it — audible as a synth
+ * layer playing in parallel with the piano.
+ */
+export function stopNote(midi: MidiNote): void {
+  const voice = active.get(midi);
+  if (!voice || !audioCtx) return;
+  active.delete(midi);
+  const now = audioCtx.currentTime;
+  const g = voice.gain.gain;
+  g.cancelScheduledValues(now);
+  // exponentialRamp can't touch zero, so pin the current level first and decay from there.
+  g.setValueAtTime(Math.max(g.value, 0.0001), now);
+  g.exponentialRampToValueAtTime(0.0001, now + RELEASE_S);
+  voice.osc1.stop(now + RELEASE_S + 0.01);
+  voice.osc2.stop(now + RELEASE_S + 0.01);
+}
+
+/** Damp every sounding note — used at the handover once the sampled piano is ready. */
+export function stopAllNotes(): void {
+  for (const midi of [...active.keys()]) stopNote(midi);
+}
+
 export function playNote(midi: MidiNote): void {
   const ctx = getAudioCtx();
   if (ctx.state === 'suspended') ctx.resume();
+
+  stopNote(midi); // retrigger cleanly if this note is already sounding
 
   const freq = midiToFreq(midi);
   const now  = ctx.currentTime;
@@ -42,4 +74,10 @@ export function playNote(midi: MidiNote): void {
 
   osc1.start(now); osc2.start(now);
   osc1.stop(now + 1.8); osc2.stop(now + 1.8);
+
+  active.set(midi, { osc1, osc2, gain });
+  // Drop the entry when the note ends on its own, so it isn't "released" later by mistake.
+  osc1.onended = () => {
+    if (active.get(midi)?.osc1 === osc1) active.delete(midi);
+  };
 }

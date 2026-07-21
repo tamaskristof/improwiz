@@ -93,11 +93,16 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   treat mic and MIDI input interchangeably. Has hand-tuned constants for silence/onset/stability detection
   (`AMPLITUDE_THRESHOLD`, `ATTACK_HOLDOFF_MS`, `NOTE_HOLD_MS`, `NSDF_THRESHOLD`) — read the header comment
   before touching these, they encode specific tradeoffs about attack transients vs. note-decay grace periods.
-- **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`). No longer the primary sound source; it's now
-  only the **fallback** `src/state/audio.svelte.ts` plays while the sampled piano's samples are still
-  loading (immediate feedback on the first keypresses), then the real piano takes over. It runs on its own
-  `AudioContext`, so it can't route through the master soft-clipper — its per-note peak gain is kept low
-  (0.18) so simultaneous notes don't clip on their own.
+- **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`/`stopNote`/`stopAllNotes`). No longer the
+  primary sound source; it's now only the **fallback** `src/state/audio.svelte.ts` plays while the sampled
+  piano's samples are still loading (immediate feedback on the first keypresses), then the real piano takes
+  over. It runs on its own `AudioContext`, so it can't route through the master soft-clipper — its per-note
+  peak gain is kept low (0.18) so simultaneous notes don't clip on their own. It tracks sounding voices in
+  an `active` map so they can be damped early: `playNote` used to be fire-and-forget with a fixed 1.8 s
+  decay, so notes still ringing when the piano finished loading kept sounding *underneath* it (measured
+  550 ms of audible synth-over-piano overlap). `noteOff` now calls `stopNote`, and `#build()` calls
+  `stopAllNotes()` at the handover. **This only shows up when sample loading is slow enough to play
+  through** — on localhost it loads instantly, so reproduce it with CDP network throttling.
 - **`src/state/audio.svelte.ts`** — the sampled acoustic piano (the actual sound source for MIDI + on-screen
   keys; **mic input stays silent**, since your instrument already makes the sound). Wraps `@tonejs/piano`
   (Salamander Grand). `noteOn(midi, velocity01)`/`noteOff(midi)` map to the library's `keyDown`/`keyUp`, so
