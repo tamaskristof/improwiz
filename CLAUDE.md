@@ -136,8 +136,8 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `VELOCITY_OPTIONS` = 1/2/4/8) — more layers = more timbral response to how hard you play. The count is
   fixed at `Piano` construction, so `setVelocities()` disposes and rebuilds the piano + reloads samples
   (`#loadToken` guards against overlapping reloads). `Piano` is built with `release:false, pedal:false`, so
-  only the per-note velocity layers are needed. The output chain is **piano → user `Gain` → soft-clip
-  `WaveShaper` → destination**, with `piano.strings` trimmed to `HEADROOM_DB` (-12). This exists because
+  only the per-note velocity layers are needed. The output chain is **piano → `Tone.Reverb` → user `Gain` →
+  soft-clip `WaveShaper` → destination**, with `piano.strings` trimmed to `HEADROOM_DB` (-12). This exists because
   `@tonejs/piano` bakes `volume: 3` dB into every velocity-layer `Sampler` and sums notes at unity gain, so
   the raw output hard-clips Web Audio's destination (±1.0) even on a *single* note at full velocity —
   measured peaks were 1.33 / 2.44 / 3.35 for 1 / 4 / 6 notes, audible as crackle. At -12 dB a 6-note
@@ -146,11 +146,19 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   problem — passes through before gain reduction engages, and `Tone.Limiter` additionally never overrides
   `Compressor`'s default `knee: 30` dB so it barely acts near 0 dBFS (measured: it left a 6-note chord at
   1.78). The `WaveShaper` is sample-accurate and cannot exceed its curve's range. The shaper stays **last**
-  so nothing downstream can push back over full scale, and the `#gain`/shaper pair is created once and
+  so nothing downstream can push back over full scale, and the `#gain`/`#reverb` pair is created once and
   deliberately outlives the piano rebuilds `setVelocities()` performs. `volume` is a 0–1 slider position
   (persisted under `improwiz_piano_volume`) scaled by `MAX_GAIN` = 2, so the top of the slider is +6 dB and
   trades transparency for loudness — the shaper keeps that bounded (measured 0.89 on a 6-note chord).
-  `ensureStarted()` resumes the AudioContext (`Tone.start()`), but **WebMIDI note events are not a user
+  Reverb is split into two settings for a reason: `reverbSpace` (`REVERB_SPACES` presets Off/Room/
+  Studio/Hall, persisted under `improwiz_reverb_space`) sets `decay`/`preDelay`, and Tone's `Reverb`
+  **re-renders its impulse response offline on every `decay`/`preDelay` write** (see
+  `node_modules/tone/.../effect/Reverb.js`'s `generate()`), so that's a preset picker, not a
+  continuously-dragged slider. `reverbAmount` (persisted under `improwiz_reverb_amount`) instead drives
+  `wet`, a plain `Signal` ramp with no re-render — that's the free 0–1 slider. `allNotesOff()` also ducks
+  `wet` to 0 and ramps it back (`#duckToken` guards overlapping panics) since a convolution reverb's tail
+  can't otherwise be silenced — the IR just keeps ringing out its decaying noise burst regardless of what
+  the piano is doing. `ensureStarted()` resumes the AudioContext (`Tone.start()`), but **WebMIDI note events are not a user
   gesture**, so playing a MIDI keyboard can't start audio by itself — on a fresh origin the context stays
   suspended and every note falls through to the `playNote` synth. `armAutoStart()` (called once from
   `App.svelte`'s `onMount`) therefore listens for the first `pointerdown`/`keydown`/`touchstart` anywhere

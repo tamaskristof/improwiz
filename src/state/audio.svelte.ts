@@ -11,17 +11,38 @@
 // MidiInput, which `extends EventEmitter` from Node's 'events' (Vite externalizes it to undefined in
 // the browser) and pulls the uninstalled 'webmidi' peer dep. We only need Piano.
 import { Piano } from '@tonejs/piano/build/piano/Piano';
-import { Frequency, Gain, WaveShaper, getContext, start as toneStart } from 'tone';
+import { Frequency, Gain, Reverb, WaveShaper, getContext, start as toneStart } from 'tone';
 import { playNote, stopAllNotes, stopNote } from '../lib/sound';
 import type { MidiNote } from '../lib/types';
 
 const LS_KEY = 'improwiz_piano_velocities';
 const LS_VOLUME_KEY = 'improwiz_piano_volume';
+const LS_REVERB_SPACE_KEY = 'improwiz_reverb_space';
+const LS_REVERB_AMOUNT_KEY = 'improwiz_reverb_amount';
 
 /** Presets surfaced in Settings. Higher = more timbral response to how hard you play. */
 export const VELOCITY_OPTIONS = [1, 2, 4, 8] as const;
 export const VELOCITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 4: 'High', 8: 'Max' };
 const DEFAULT_VELOCITIES = 4;
+
+/**
+ * Reverb "space" presets. `decay`/`preDelay` drive Tone's Reverb, which renders its impulse response
+ * offline on every change (see Reverb.js `generate()`) — fine for a discrete preset pick, but not
+ * something to expose as a continuously-dragged slider. The continuous control is `reverbAmount`
+ * (wet/dry), which is a live Signal and never triggers a re-render.
+ */
+export const REVERB_SPACES = [
+  { id: 'off', label: 'Off', decay: 0, preDelay: 0 },
+  { id: 'room', label: 'Room', decay: 1.2, preDelay: 0.01 },
+  { id: 'studio', label: 'Studio', decay: 1.8, preDelay: 0.02 },
+  { id: 'hall', label: 'Hall', decay: 3.0, preDelay: 0.03 },
+] as const;
+export type ReverbSpaceId = (typeof REVERB_SPACES)[number]['id'];
+const DEFAULT_REVERB_SPACE: ReverbSpaceId = 'room';
+const DEFAULT_REVERB_AMOUNT = 0.25;
+/** How long a panic's reverb-tail cut and its restore ramp take, in seconds. */
+const REVERB_DUCK_S = 0.02;
+const REVERB_RESTORE_S = 0.05;
 
 // Output headroom. @tonejs/piano bakes `volume: 3` dB into every velocity-layer Sampler (see
 // String.js) and sums notes at unity gain, so the raw output clips Web Audio's destination (±1.0)
@@ -73,6 +94,21 @@ function loadVolume(): number {
   return Number.isFinite(v) && v >= 0 && v <= 1 ? v : DEFAULT_VOLUME;
 }
 
+function loadReverbSpace(): ReverbSpaceId {
+  const raw = localStorage.getItem(LS_REVERB_SPACE_KEY);
+  return (REVERB_SPACES as readonly { id: string }[]).some((s) => s.id === raw)
+    ? (raw as ReverbSpaceId)
+    : DEFAULT_REVERB_SPACE;
+}
+
+function loadReverbAmount(): number {
+  // Same explicit null check as loadVolume: Number(null) is 0, which would pass the range test.
+  const raw = localStorage.getItem(LS_REVERB_AMOUNT_KEY);
+  if (raw === null) return DEFAULT_REVERB_AMOUNT;
+  const v = Number(raw);
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : DEFAULT_REVERB_AMOUNT;
+}
+
 function midiToNote(midi: MidiNote): string {
   return Frequency(midi, 'midi').toNote();
 }
@@ -88,21 +124,28 @@ class AudioState {
   loaded = $state(false);
   /** Master volume as a 0–1 slider position (persisted). Scaled by MAX_GAIN to get actual gain. */
   volume = $state(loadVolume());
+  /** Selected reverb space preset (persisted). 'off' bypasses the wet signal entirely. */
+  reverbSpace = $state(loadReverbSpace());
+  /** Reverb wet amount, 0–1 (persisted). Continuous — never triggers an IR re-render. */
+  reverbAmount = $state(loadReverbAmount());
   /** True while the browser is blocking audio until the user interacts with the page. */
   blocked = $state(false);
 
   #piano: Piano | null = null;
   /**
-   * Master bus: user gain -> soft-clipper -> destination. Created once and reused, since it must
-   * outlive the piano rebuilds setVelocities() does. The clipper is deliberately last, so nothing
-   * downstream can push the signal back over full scale.
+   * Master bus: piano -> reverb -> user gain -> soft-clipper -> destination. Created once and
+   * reused, since both must outlive the piano rebuilds setVelocities() does. The clipper is
+   * deliberately last, so nothing downstream can push the signal back over full scale.
    */
+  #reverb: Reverb | null = null;
   #gain: Gain | null = null;
   #started = false;
   /** Set while a document-level listener is waiting for the gesture that unblocks audio. */
   #unlockHandler: (() => void) | null = null;
   /** Bumped on every (re)build so a superseded in-flight load can detect it lost the race. */
   #loadToken = 0;
+  /** Bumped on every panic so an overlapping restore-after-duck doesn't clobber a newer one. */
+  #duckToken = 0;
 
   /** Build + load the piano for the current velocity setting. Safe to call repeatedly. */
   async #build(): Promise<void> {
@@ -113,12 +156,17 @@ class AudioState {
       shaper.oversample = '4x'; // the curve is non-linear — oversample to keep aliasing down
       this.#gain = new Gain(this.volume * MAX_GAIN).connect(shaper);
     }
+    if (!this.#reverb) {
+      this.#reverb = new Reverb(0.001).connect(this.#gain);
+      this.#reverb.wet.value = 0; // #applyReverb() below brings this up to the real setting
+      this.#applyReverb();
+    }
     const piano = new Piano({
       velocities: this.velocities,
       release: false, // skip keybed/harmonic samples — note layers alone carry the piano sound
       pedal: false, // no sustain-pedal control in the app
       url: SAMPLES_URL,
-    }).connect(this.#gain);
+    }).connect(this.#reverb);
     // `strings` is the only component in play (release/pedal are off), so it's the one volume knob.
     piano.strings.value = HEADROOM_DB;
     await piano.load();
@@ -206,10 +254,24 @@ class AudioState {
    * Panic: silence everything currently sounding, on both the piano and the fallback synth. This is
    * the backstop layer — it doesn't consult any note bookkeeping, so it still works when a missing
    * note-off has left the app's own pressed-key state out of sync with what's audible.
+   *
+   * A convolution reverb's tail can't be cleared like a note can — the IR just keeps ringing out the
+   * decaying noise burst it convolved — so panic wouldn't otherwise be silent while a space with a
+   * long decay is active. Duck the wet signal down and back up around the stop instead: brief enough
+   * to read as "cut", but ramped so it doesn't click.
    */
   allNotesOff(): void {
     stopAllNotes();
     this.#piano?.stopAll();
+    if (this.#reverb && this.reverbSpace !== 'off' && this.reverbAmount > 0) {
+      const token = ++this.#duckToken;
+      const target = this.reverbAmount;
+      this.#reverb.wet.rampTo(0, REVERB_DUCK_S);
+      setTimeout(() => {
+        if (token !== this.#duckToken || !this.#reverb) return; // superseded by a newer panic
+        this.#reverb.wet.rampTo(target, REVERB_RESTORE_S);
+      }, REVERB_DUCK_S * 1000);
+    }
   }
 
   /** Set master volume from a 0–1 slider position: persist and apply live (no rebuild needed). */
@@ -218,6 +280,40 @@ class AudioState {
     this.volume = clamped;
     localStorage.setItem(LS_VOLUME_KEY, String(clamped));
     if (this.#gain) this.#gain.gain.rampTo(clamped * MAX_GAIN, 0.05); // ramp to avoid a click
+  }
+
+  /**
+   * Push the current reverbSpace/reverbAmount onto the live Reverb node. Setting decay/preDelay
+   * triggers an offline IR re-render (Tone queues it internally, so a decay+preDelay pair issued
+   * together resolves to the last values); wet is a plain Signal ramp and never re-renders, which is
+   * exactly why space is a discrete preset picker and amount is a free slider.
+   */
+  #applyReverb(): void {
+    if (!this.#reverb) return;
+    const space = REVERB_SPACES.find((s) => s.id === this.reverbSpace) ?? REVERB_SPACES[1];
+    if (space.id === 'off') {
+      this.#reverb.wet.rampTo(0, 0.05);
+      return;
+    }
+    this.#reverb.preDelay = space.preDelay;
+    this.#reverb.decay = space.decay;
+    this.#reverb.wet.rampTo(this.reverbAmount, 0.05);
+  }
+
+  /** Pick a reverb space preset: persist and (re)generate the impulse response. */
+  setReverbSpace(id: ReverbSpaceId): void {
+    if (id === this.reverbSpace) return;
+    this.reverbSpace = id;
+    localStorage.setItem(LS_REVERB_SPACE_KEY, id);
+    this.#applyReverb();
+  }
+
+  /** Set reverb wet amount from a 0–1 slider position: persist and apply live, no re-render. */
+  setReverbAmount(v: number): void {
+    const clamped = clamp01(v);
+    this.reverbAmount = clamped;
+    localStorage.setItem(LS_REVERB_AMOUNT_KEY, String(clamped));
+    if (this.#reverb && this.reverbSpace !== 'off') this.#reverb.wet.rampTo(clamped, 0.05);
   }
 
   /** Change velocity layers: persist and rebuild (the count is fixed at Piano construction). */

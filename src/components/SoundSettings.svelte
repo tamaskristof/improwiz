@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { audio, VELOCITY_LABELS, VELOCITY_OPTIONS } from '../state/audio.svelte';
+  import { audio, REVERB_SPACES, VELOCITY_LABELS, VELOCITY_OPTIONS } from '../state/audio.svelte';
 </script>
 
 <div class="sound-settings">
   <div class="field">
     <span class="field-label">Velocity layers</span>
-    <div class="velocity-options" role="radiogroup" aria-label="Velocity layers">
+    <div class="chip-options" role="radiogroup" aria-label="Velocity layers">
       {#each VELOCITY_OPTIONS as v (v)}
-        <label class="velocity-option" class:selected={audio.velocities === v}>
+        <label class="chip" class:selected={audio.velocities === v}>
           <input
             type="radio"
             name="velocities"
@@ -29,7 +29,7 @@
     <label class="field-label" for="volume">Volume</label>
     <input
       id="volume"
-      class="volume-slider"
+      class="slider"
       type="range"
       min="0"
       max="1"
@@ -40,6 +40,39 @@
     <p class="field-hint">
       The piano is deliberately quiet so chords stay clean. Turning this past halfway gets louder but
       starts to saturate dense chords.
+    </p>
+  </div>
+
+  <div class="field">
+    <span class="field-label">Reverb</span>
+    <div class="chip-options" role="radiogroup" aria-label="Reverb space">
+      {#each REVERB_SPACES as space (space.id)}
+        <label class="chip" class:selected={audio.reverbSpace === space.id}>
+          <input
+            type="radio"
+            name="reverb-space"
+            value={space.id}
+            checked={audio.reverbSpace === space.id}
+            onchange={() => audio.setReverbSpace(space.id)}
+          />
+          {space.label}
+        </label>
+      {/each}
+    </div>
+    <label class="field-label amount-label" for="reverb-amount">Amount</label>
+    <input
+      id="reverb-amount"
+      class="slider"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value={audio.reverbAmount}
+      disabled={audio.reverbSpace === 'off'}
+      oninput={(e) => audio.setReverbAmount(e.currentTarget.valueAsNumber)}
+    />
+    <p class="field-hint">
+      The space sets the size of the room; amount sets how much of it you hear.
     </p>
   </div>
 </div>
@@ -59,13 +92,13 @@
     margin-bottom: 0.5rem;
   }
 
-  .velocity-options {
+  .chip-options {
     display: flex;
     gap: 0.4rem;
     flex-wrap: wrap;
   }
 
-  .velocity-option {
+  .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.35em;
@@ -77,20 +110,29 @@
     cursor: pointer;
   }
 
-  .velocity-option.selected {
+  .chip.selected {
     color: var(--ink);
     border-color: var(--n-root);
   }
 
-  .velocity-option input[type="radio"] {
+  .chip input[type="radio"] {
     accent-color: var(--n-root);
     cursor: pointer;
   }
 
-  .volume-slider {
+  .slider {
     width: 100%;
     accent-color: var(--n-root);
     cursor: pointer;
+  }
+
+  .slider:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .amount-label {
+    margin-top: 0.6rem;
   }
 
   .field-hint {
