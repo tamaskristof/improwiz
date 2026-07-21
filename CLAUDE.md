@@ -94,7 +94,14 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   Off) → `onPanic`. The channel nibble is deliberately ignored — the app is monotimbral. `onPanic` also
   fires when an input port goes `disconnected`, since a controller unplugged mid-chord never sends the
   note-offs for what it was holding. Unsupported-browser detection is the caller's job (`App.svelte`
-  checks `'requestMIDIAccess' in navigator` directly and renders the banner reactively).
+  checks `'requestMIDIAccess' in navigator` directly and renders the banner reactively). `parseMidiMessage`
+  also handles the 3 pedals and 2 wheels via a single `ControllerMessage` union, dispatched through one
+  `onController` callback rather than a handler per CC (computerKeys.ts/microphone.ts have no analog for
+  any of these, so it stays MIDI-only): **0xB0 CC 64/66/67** (sustain/sostenuto/soft) parse to a boolean,
+  thresholded at `value >= 64` like most gear does rather than attempting half-pedaling; **CC 1** (mod
+  wheel) to a 0–1 value; and **0xE0** (pitch bend) reconstructs the 14-bit value (`data1` low 7 bits,
+  `data2` high 7 bits) and normalizes around center (`0x2000`) to -1..1 — note the 14-bit range isn't
+  symmetric around its own center, so the max value normalizes to just short of +1, not exactly it.
 - **`src/lib/computerKeys.ts`** — the computer keyboard as a playable, *scored* input source, so a laptop
   with no hardware is a real practice setup. `initComputerKeys()` mirrors midi.ts's callback signature.
   Layout is the tracker/FL two-row one (`Z X C V B N M , . /` + `Q W E R T Y U I O P`, blacks on the row
@@ -135,9 +142,12 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   user setting (`velocities`, persisted to `localStorage` under `improwiz_piano_velocities`, presets
   `VELOCITY_OPTIONS` = 1/2/4/8) — more layers = more timbral response to how hard you play. The count is
   fixed at `Piano` construction, so `setVelocities()` disposes and rebuilds the piano + reloads samples
-  (`#loadToken` guards against overlapping reloads). `Piano` is built with `release:false, pedal:false`, so
-  only the per-note velocity layers are needed. The output chain is **piano → `Tone.Reverb` → user `Gain` →
-  soft-clip `WaveShaper` → destination**, with `piano.strings` trimmed to `HEADROOM_DB` (-12). This exists because
+  (`#loadToken` guards against overlapping reloads). `Piano` is built with `release:false, pedal:false` —
+  `pedal:false` only gates loading/playing the *mechanical* pedal-noise samples (creak/thunk); the
+  library's actual sustain bookkeeping (`pedalDown()`/`pedalUp()`) works regardless, which is what
+  `setSustain()` calls. The output chain is **piano → `Tone.PitchShift` → `Tone.Vibrato` → `Tone.Reverb` →
+  user `Gain` → soft-clip `WaveShaper` → destination**, with `piano.strings` trimmed to `HEADROOM_DB`
+  (-12). This exists because
   `@tonejs/piano` bakes `volume: 3` dB into every velocity-layer `Sampler` and sums notes at unity gain, so
   the raw output hard-clips Web Audio's destination (±1.0) even on a *single* note at full velocity —
   measured peaks were 1.33 / 2.44 / 3.35 for 1 / 4 / 6 notes, audible as crackle. At -12 dB a 6-note
@@ -146,8 +156,22 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   problem — passes through before gain reduction engages, and `Tone.Limiter` additionally never overrides
   `Compressor`'s default `knee: 30` dB so it barely acts near 0 dBFS (measured: it left a 6-note chord at
   1.78). The `WaveShaper` is sample-accurate and cannot exceed its curve's range. The shaper stays **last**
-  so nothing downstream can push back over full scale, and the `#gain`/`#reverb` pair is created once and
-  deliberately outlives the piano rebuilds `setVelocities()` performs. `volume` is a 0–1 slider position
+  so nothing downstream can push back over full scale, and the `#gain`/`#reverb`/`#pitchShift`/`#vibrato`
+  nodes are all created once and deliberately outlive the piano rebuilds `setVelocities()` performs.
+  `setSostenuto(down, heldNotes)` implements the one pedal `@tonejs/piano` has no concept of at all: it
+  snapshots the currently-held notes into `#sostenutoNotes` on engage, and `noteOff()` defers the real
+  `keyUp` for any of them into `#sostenutoDeferred` until sostenuto lifts — everything else releases
+  immediately as normal. `setSoft()` similarly has no library support (no distinct una-corda sample set),
+  so it's approximated by scaling attack velocity (`SOFT_PEDAL_VELOCITY_FACTOR`) on notes played while
+  held — it only affects new notes, not already-sounding ones, same as the real mechanism. Pitch bend and
+  the mod wheel have no per-note equivalent on `Sampler` either, so both are bus-level effects on the
+  *whole* piano output rather than true per-note bend: `setPitchBend()` sets `PitchShift.pitch` directly
+  (semitones, scaled by the `pitchBendRangeSemitones` preset — no ramp, since bend messages arrive rapidly
+  and should track the wheel immediately), and `setModWheel()` ramps `Vibrato.depth` (scaled by the
+  `modWheelDepth` setting, against a fixed `VIBRATO_RATE_HZ`). `allNotesOff()` resets all of this too:
+  pedal/wheel `$state` flags back to false/0, the sostenuto snapshot/deferred sets cleared, `pitchShift`
+  pitch to 0, and `vibrato` depth ramped to 0 — `Piano.stopAll()` already calls the library's own
+  `pedalUp()` internally, so sustain doesn't need a separate reset call. `volume` is a 0–1 slider position
   (persisted under `improwiz_piano_volume`) scaled by `MAX_GAIN` = 2, so the top of the slider is +6 dB and
   trades transparency for loudness — the shaper keeps that bounded (measured 0.89 on a 6-note chord).
   Reverb is split into two settings for a reason: `reverbSpace` (`REVERB_SPACES` presets Off/Room/

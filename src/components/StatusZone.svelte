@@ -1,5 +1,6 @@
 <script lang="ts">
   import { SCALE_INFO } from '../lib/scales';
+  import { audio } from '../state/audio.svelte';
   import { practice } from '../state/practice.svelte';
   import { score } from '../state/score.svelte';
 
@@ -24,6 +25,18 @@
   </div>
 
   <div class="right">
+    <div class="controller-status" aria-label="Pedal, mod wheel and pitch bend state">
+      <span class="pedal-badge" class:active={audio.sustainDown} title="Sustain pedal">Sus</span>
+      <span class="pedal-badge" class:active={audio.sostenutoDown} title="Sostenuto pedal">Sos</span>
+      <span class="pedal-badge" class:active={audio.softDown} title="Soft pedal">Soft</span>
+      <div class="wheel-meter" title="Mod wheel">
+        <div class="wheel-meter-fill" style={`width: ${audio.modWheel * 100}%`}></div>
+      </div>
+      <div class="bend-meter" title="Pitch bend">
+        <div class="bend-meter-center"></div>
+        <div class="bend-meter-fill" style={`left: ${50 + audio.pitchBend * 50}%`}></div>
+      </div>
+    </div>
     <div class="score-ring" style={ringStyle} aria-label="Overall score">
       <div class="score-ring-inner"><span class="score-ring-num">{ringValue ?? '—'}</span></div>
     </div>
@@ -63,6 +76,64 @@
     display: flex;
     align-items: center;
     gap: 22px;
+  }
+
+  .controller-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pedal-badge {
+    font: 700 0.68rem var(--font-body);
+    color: var(--faint);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.15rem 0.4rem;
+    line-height: 1.4;
+  }
+
+  .pedal-badge.active {
+    color: var(--ink);
+    border-color: var(--n-root);
+    background: color-mix(in srgb, var(--n-root) 20%, transparent);
+  }
+
+  .wheel-meter,
+  .bend-meter {
+    position: relative;
+    width: 36px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--track);
+    overflow: hidden;
+  }
+
+  .wheel-meter-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    height: 100%;
+    background: var(--n-root);
+    border-radius: 3px;
+  }
+
+  .bend-meter-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .bend-meter-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    margin-left: -1.5px;
+    background: var(--n-root);
+    border-radius: 2px;
   }
 
   .score-ring {

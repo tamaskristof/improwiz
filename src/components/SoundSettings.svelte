@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { audio, REVERB_SPACES, VELOCITY_LABELS, VELOCITY_OPTIONS } from '../state/audio.svelte';
+  import { audio, PITCH_BEND_RANGES, REVERB_SPACES, VELOCITY_LABELS, VELOCITY_OPTIONS } from '../state/audio.svelte';
 </script>
 
 <div class="sound-settings">
@@ -73,6 +73,45 @@
     />
     <p class="field-hint">
       The space sets the size of the room; amount sets how much of it you hear.
+    </p>
+  </div>
+
+  <div class="field">
+    <span class="field-label">Pitch bend range</span>
+    <div class="chip-options" role="radiogroup" aria-label="Pitch bend range">
+      {#each PITCH_BEND_RANGES as semitones (semitones)}
+        <label class="chip" class:selected={audio.pitchBendRangeSemitones === semitones}>
+          <input
+            type="radio"
+            name="pitch-bend-range"
+            value={semitones}
+            checked={audio.pitchBendRangeSemitones === semitones}
+            onchange={() => audio.setPitchBendRange(semitones)}
+          />
+          &plusmn;{semitones}
+        </label>
+      {/each}
+    </div>
+    <p class="field-hint">
+      How far the pitch-bend wheel shifts the whole piano's pitch, in semitones each way. There's no
+      per-note bend on the sampled piano, so this bends everything sounding at once.
+    </p>
+  </div>
+
+  <div class="field">
+    <label class="field-label" for="mod-wheel-depth">Mod wheel depth</label>
+    <input
+      id="mod-wheel-depth"
+      class="slider"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value={audio.modWheelDepth}
+      oninput={(e) => audio.setModWheelDepth(e.currentTarget.valueAsNumber)}
+    />
+    <p class="field-hint">
+      How far the mod wheel can push a vibrato effect on the piano.
     </p>
   </div>
 </div>

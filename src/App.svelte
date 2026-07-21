@@ -80,7 +80,15 @@
     // MIDI note events aren't a user gesture, so audio can't start from playing alone.
     audio.armAutoStart();
 
-    initMidi(playNoteOn, playNoteOff, (name) => input.setMidiStatus(name), panic);
+    initMidi(playNoteOn, playNoteOff, (name) => input.setMidiStatus(name), panic, (msg) => {
+      switch (msg.type) {
+        case 'sustain': audio.setSustain(msg.down); break;
+        case 'sostenuto': audio.setSostenuto(msg.down, input.pressedKeys); break;
+        case 'soft': audio.setSoft(msg.down); break;
+        case 'modWheel': audio.setModWheel(msg.value); break;
+        case 'pitchBend': audio.setPitchBend(msg.value); break;
+      }
+    });
 
     computerKeys = initComputerKeys(playNoteOn, playNoteOff, (base) => input.setKeyboardOctaveBase(base));
 

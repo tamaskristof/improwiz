@@ -26,15 +26,51 @@ describe('parseMidiMessage', () => {
     expect(parseMidiMessage([0xb0, 120, 0])).toEqual({ type: 'panic' }); // All Sound Off
   });
 
-  it('ignores control changes that are not panics', () => {
+  it('ignores control changes it does not act on', () => {
     expect(parseMidiMessage([0xb0, 7, 100])).toBeNull(); // channel volume
-    expect(parseMidiMessage([0xb0, 64, 127])).toBeNull(); // sustain pedal
+    expect(parseMidiMessage([0xb0, 10, 64])).toBeNull(); // pan
   });
 
-  it('ignores messages we do not act on', () => {
-    expect(parseMidiMessage([0xe0, 0, 64])).toBeNull(); // pitch bend
+  it('ignores other unhandled messages', () => {
     expect(parseMidiMessage([0xa0, 60, 80])).toBeNull(); // polyphonic aftertouch
     expect(parseMidiMessage([0xf8])).toBeNull(); // clock
+  });
+
+  it('parses the sustain pedal (CC64) as a boolean, thresholded at 64', () => {
+    expect(parseMidiMessage([0xb0, 64, 127])).toEqual({ type: 'sustain', down: true });
+    expect(parseMidiMessage([0xb0, 64, 64])).toEqual({ type: 'sustain', down: true });
+    expect(parseMidiMessage([0xb0, 64, 63])).toEqual({ type: 'sustain', down: false });
+    expect(parseMidiMessage([0xb0, 64, 0])).toEqual({ type: 'sustain', down: false });
+  });
+
+  it('parses the sostenuto pedal (CC66) as a boolean', () => {
+    expect(parseMidiMessage([0xb0, 66, 127])).toEqual({ type: 'sostenuto', down: true });
+    expect(parseMidiMessage([0xb0, 66, 0])).toEqual({ type: 'sostenuto', down: false });
+  });
+
+  it('parses the soft pedal (CC67) as a boolean', () => {
+    expect(parseMidiMessage([0xb0, 67, 127])).toEqual({ type: 'soft', down: true });
+    expect(parseMidiMessage([0xb0, 67, 0])).toEqual({ type: 'soft', down: false });
+  });
+
+  it('parses the mod wheel (CC1) as a 0..1 value', () => {
+    expect(parseMidiMessage([0xb0, 1, 0])).toEqual({ type: 'modWheel', value: 0 });
+    expect(parseMidiMessage([0xb0, 1, 127])).toEqual({ type: 'modWheel', value: 1 });
+  });
+
+  it('ignores the channel nibble for control changes too', () => {
+    expect(parseMidiMessage([0xb3, 64, 127])).toEqual({ type: 'sustain', down: true });
+  });
+
+  it('parses pitch bend (0xE0) as a -1..1 value centered at the 14-bit midpoint', () => {
+    expect(parseMidiMessage([0xe0, 0, 64])).toEqual({ type: 'pitchBend', value: 0 }); // center (0x2000)
+    expect(parseMidiMessage([0xe0, 0, 0])).toEqual({ type: 'pitchBend', value: -1 }); // min (0x0000)
+    // Max (0x3FFF = 16383) is 8191 above center out of a possible 8192, i.e. just short of +1 — the
+    // 14-bit range isn't symmetric around its own center, same as real MIDI pitch-bend hardware.
+    const max = parseMidiMessage([0xe0, 0x7f, 0x7f]);
+    expect(max?.type).toBe('pitchBend');
+    expect((max as { value: number }).value).toBeCloseTo(8191 / 8192, 6);
+    expect(parseMidiMessage([0xef, 0, 64])).toEqual({ type: 'pitchBend', value: 0 }); // channel ignored
   });
 
   it('survives short or empty data without throwing', () => {
