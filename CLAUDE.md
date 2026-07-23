@@ -246,11 +246,11 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   hue, so grey rather than a red, and it reads as "off the map" instead of as an error. It used to render
   nothing at all for out-of-scale notes, which was indistinguishable from the key not registering.
   The optional `highlightNotes` prop is a set of **MIDI notes** (not pitch classes) — one voicing of a
-  chord previewed from `ChordStrip.svelte`, so it lights a single instance from C4 rather than every octave
+  chord previewed from `ChordStrip.svelte`, so it lights a single instance from C3 rather than every octave
   of each pitch class. While it's non-empty (`previewing`), the previewed keys render at full-saturation
   role colour with their note label (the same `.fill` a held key gets), and every *other* resting role cap
   drops to a `0.07` whisper (`.cap.dimmed`) — so only the voiced chord reads. This replaced an earlier
-  `.ring` outline that lit every octave; the point now is "here is the chord, from C4", not "where do these
+  `.ring` outline that lit every octave; the point now is "here is the chord, from C3", not "where do these
   pitch classes appear". Suppressed while `quiz.active`.
 - **`src/components/ChordStrip.svelte`** — the scale's diatonic chords as a full-width chip row between
   `AnnotationZone` and `Keyboard` (full-width because the annotation grid is already tight at
@@ -262,7 +262,7 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   **tonic** column additionally gets a brass `border-top` accent, independent of quality. Hovering calls
   back up to `App.svelte` to set `Keyboard`'s `highlightNotes` (the voiced chord); pressing voices the chord
   in close position and plays it through `audio` — same voicing as the highlight, so what lights is what
-  sounds. Each chord's root is anchored at its scale-degree position above the tonic (tonic in the C4
+  sounds. Each chord's root is anchored at its scale-degree position above the tonic (tonic in the C3
   octave), so the strip rises monotonically left-to-right instead of an octave-wrapped root dropping a
   chord backwards. It deliberately **never** calls `recordNoteOn`/`recordNoteOff`, since clicking a
   chord is exploring, not playing (the same reason on-screen key clicks stay unscored). In quiz mode every

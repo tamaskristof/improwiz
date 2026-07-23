@@ -5,6 +5,8 @@ import type { PitchClass } from '../lib/types';
 class QuizState {
   active = $state(false);
   foundNotes = $state<Set<PitchClass>>(new Set());
+  /** Diatonic chords the player has played whole, keyed by the strip's chip key. */
+  foundChords = $state<Set<string>>(new Set());
 
   setActive(active: boolean): void {
     if (this.active === active) return;
@@ -18,9 +20,16 @@ class QuizState {
     this.foundNotes = new Set(this.foundNotes).add(pc);
   }
 
+  /** No-op when inactive or already found — called when a whole diatonic chord is held. */
+  chordFound(key: string): void {
+    if (!this.active || this.foundChords.has(key)) return;
+    this.foundChords = new Set(this.foundChords).add(key);
+  }
+
   /** Called on every "next scale" (the run boundary), active or not. */
   reset(): void {
     this.foundNotes = new Set();
+    this.foundChords = new Set();
   }
 }
 

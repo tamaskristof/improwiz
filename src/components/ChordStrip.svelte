@@ -2,22 +2,41 @@
   import type { DiatonicChord } from '../lib/chords';
   import type { MidiNote, PitchClass } from '../lib/types';
   import { audio } from '../state/audio.svelte';
+  import { input } from '../state/input.svelte';
   import { practice } from '../state/practice.svelte';
   import { quiz } from '../state/quiz.svelte';
 
   interface Props {
-    /** Voiced MIDI notes to light on the keyboard (one instance from C4), or null to clear. */
+    /** Voiced MIDI notes to light on the keyboard (one instance from C3), or null to clear. */
     onHover: (notes: Set<MidiNote> | null) => void;
   }
 
   let { onHover }: Props = $props();
 
-  // Naming every chord would hand over the whole scale, which is the one thing quiz
-  // mode exists to withhold — so the strip goes blind along with the note column.
-  let masked = $derived(quiz.active);
+  // Stable per-chip identity, matching the {#each} key below.
+  const chipKey = (chord: DiatonicChord) => chord.numeral + chord.label;
+
+  // Quiz mode: naming every chord up front would hand over the whole scale, so the strip starts
+  // blind — but a chip reveals itself the moment the player *plays that whole chord* (all of its
+  // pitch classes held, nothing extra), the chord analogue of note-by-note reveal-on-hit. Exact
+  // set-equality means partial/one-at-a-time presses don't count; the full chord does.
+  $effect(() => {
+    if (!quiz.active) return;
+    const heldPcs = new Set([...input.pressedKeys].map(m => m % 12));
+    for (const chord of practice.chords) {
+      if (quiz.foundChords.has(chipKey(chord))) continue;
+      const chordPcs = new Set(chord.notes);
+      if (heldPcs.size === chordPcs.size && [...chordPcs].every(pc => heldPcs.has(pc))) {
+        quiz.chordFound(chipKey(chord));
+      }
+    }
+  });
+
+  // A chip is hidden only while quiz is active *and* its chord hasn't been played yet.
+  const isRevealed = (chord: DiatonicChord) => !quiz.active || quiz.foundChords.has(chipKey(chord));
 
   // Voice the chord in close position, with its root placed at the chord's own scale-degree
-  // position *above the tonic* (tonic anchored in the C4 octave). Anchoring by degree rather
+  // position *above the tonic* (tonic anchored in the C3 octave). Anchoring by degree rather
   // than by raw pitch class keeps the diatonic strip rising monotonically left-to-right:
   // otherwise a chord whose root pitch class sits below the tonic's (e.g. the C chord in D
   // Dorian) would drop an octave and jump backwards. Each upper note is then the next instance
@@ -27,7 +46,7 @@
   function voice(notes: PitchClass[]): MidiNote[] {
     const tonic = practice.rootPitchClass;
     const degreeSemitones = ((notes[0] - tonic) % 12 + 12) % 12; // 0..11 above the tonic
-    const voiced: MidiNote[] = [60 + tonic + degreeSemitones];
+    const voiced: MidiNote[] = [48 + tonic + degreeSemitones];
     for (const pc of notes.slice(1)) {
       const prev = voiced[voiced.length - 1];
       voiced.push(prev + ((pc - prev) % 12 + 12) % 12);
@@ -40,7 +59,7 @@
   // Clicking a chord is exploring, not playing: like the on-screen piano keys, it never
   // reaches recordNoteOn/recordNoteOff, so it can't inflate a run's score.
   function press(chord: DiatonicChord) {
-    if (masked) return;
+    if (!isRevealed(chord)) return;
     release();
     sounding = voice(chord.notes);
     for (const midi of sounding) audio.noteOn(midi, 0.7);
@@ -52,7 +71,7 @@
   }
 
   function enter(chord: DiatonicChord) {
-    if (!masked) onHover(new Set(voice(chord.notes)));
+    if (isRevealed(chord)) onHover(new Set(voice(chord.notes)));
   }
 
   function leave() {
@@ -94,18 +113,19 @@
   {:else}
     <div class="chips" style="grid-template-columns: repeat({practice.chords.length}, 1fr)">
       {#each practice.chords as chord (chord.numeral + chord.label)}
+        {@const revealed = isRevealed(chord)}
         <button
           class="chord-chip q-{chord.quality}"
           class:is-tonic={isTonic(chord)}
-          class:masked
-          disabled={masked}
+          class:masked={!revealed}
+          disabled={!revealed}
           onmouseenter={() => enter(chord)}
           onmouseleave={leave}
           onmousedown={() => press(chord)}
           onmouseup={release}
         >
-          <span class="numeral">{masked ? '?' : chord.numeral}</span>
-          <span class="name">{masked ? '?' : chord.label}</span>
+          <span class="numeral">{revealed ? chord.numeral : '?'}</span>
+          <span class="name">{revealed ? chord.label : '?'}</span>
         </button>
       {/each}
     </div>

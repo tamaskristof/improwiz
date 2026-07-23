@@ -102,9 +102,19 @@
     }
   });
 
-  function handleDown(e: MouseEvent, midi: MidiNote) {
+  // Pointer events unify mouse + touch + pen in one path. Capturing the pointer on down means the
+  // matching up/cancel is guaranteed to fire on this same key element even if the finger drifts off it,
+  // so the note always releases (the emulated-mouse path couldn't guarantee that — press-and-hold on
+  // touch dropped a stray note-off). Each finger is a distinct pointerId captured by its own key, so
+  // multiple keys sound at once (multi-touch chords).
+  function handlePointerDown(e: PointerEvent, midi: MidiNote) {
     e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     onNoteOn(midi);
+  }
+
+  function handlePointerUp(midi: MidiNote) {
+    onNoteOff(midi);
   }
 </script>
 
@@ -121,7 +131,14 @@
     </div>
   </div>
 
-  <div class="keyboard-strip" role="img" aria-label="Piano keyboard C2 to C7">
+  <!-- Suppress the long-press context menu / text-selection popup on touch (Android Chrome fires a
+       contextmenu event on long-press that touch-action/user-select don't cover). -->
+  <div
+    class="keyboard-strip"
+    role="img"
+    aria-label="Piano keyboard C2 to C7"
+    oncontextmenu={(e) => e.preventDefault()}
+  >
     {#each whites as key (key.midi)}
       {@const role = getNoteRole(key.pc, rootPitchClass, characteristicNotes, scaleNotes)}
       {@const held = pressedKeys.has(key.midi)}
@@ -130,9 +147,9 @@
       <div
         class="key white"
         style="left: {key.left}%; width: {key.width}%"
-        onmousedown={(e) => handleDown(e, key.midi)}
-        onmouseup={() => onNoteOff(key.midi)}
-        onmouseleave={() => onNoteOff(key.midi)}
+        onpointerdown={(e) => handlePointerDown(e, key.midi)}
+        onpointerup={() => handlePointerUp(key.midi)}
+        onpointercancel={() => handlePointerUp(key.midi)}
       >
         {#if key.isC}<span class="octave-label">{key.octaveLabel}</span>{/if}
         {#if held}
@@ -152,9 +169,9 @@
       <div
         class="key black"
         style="left: {key.left}%; width: {key.width}%"
-        onmousedown={(e) => handleDown(e, key.midi)}
-        onmouseup={() => onNoteOff(key.midi)}
-        onmouseleave={() => onNoteOff(key.midi)}
+        onpointerdown={(e) => handlePointerDown(e, key.midi)}
+        onpointerup={() => handlePointerUp(key.midi)}
+        onpointercancel={() => handlePointerUp(key.midi)}
       >
         {#if held}
           <div class="fill held" class:avoid={!role} style="background: {roleColor(role)}"><span class="held-label black-label">{key.noteName}</span></div>
@@ -225,6 +242,12 @@
     height: 100%;
     box-sizing: border-box;
     cursor: pointer;
+    /* Touch: never treat a press as scroll/pinch (also kills tap-delay + synthetic mouse events),
+       and never let a held key select text or raise the iOS long-press callout. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .key.white {

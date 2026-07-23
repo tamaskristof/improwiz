@@ -37,6 +37,24 @@ export default defineConfig({
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
         ],
+        // Both form factors are required for the richer install UI: Chrome shows the
+        // `wide` shot in the desktop install dialog and a non-`wide` (mobile) shot on Android.
+        screenshots: [
+          {
+            src: 'screenshots/wide.png',
+            sizes: '1280x800',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'ImproWiz on desktop: scale notes, chords, and the live keyboard.',
+          },
+          {
+            src: 'screenshots/narrow.png',
+            sizes: '390x844',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'ImproWiz on mobile: the current scale and its notes.',
+          },
+        ],
       },
     }),
   ],

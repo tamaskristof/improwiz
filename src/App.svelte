@@ -10,6 +10,7 @@
   import { initMidi } from './lib/midi';
   import { initMic, type MicController } from './lib/microphone';
   import { recordNoteOff, recordNoteOn } from './lib/tracker';
+  import { initWakeLock } from './lib/wakeLock';
   import { audio } from './state/audio.svelte';
   import { input } from './state/input.svelte';
   import { practice } from './state/practice.svelte';
@@ -96,9 +97,15 @@
 
     computerKeys = initComputerKeys(playNoteOn, playNoteOff, (base) => input.setKeyboardOctaveBase(base));
 
+    // Keep the tablet/phone display awake while the app is open (automatic, no UI).
+    const releaseWakeLock = initWakeLock();
+
     practice.randomize();
 
-    return () => computerKeys?.stop();
+    return () => {
+      computerKeys?.stop();
+      releaseWakeLock();
+    };
   });
 </script>
 

@@ -14,7 +14,29 @@
 
   // A device/mic is live when the status text isn't the idle default.
   let connected = $derived(input.micActive || input.displayStatus.startsWith('MIDI:'));
+
+  // Fullscreen: manual toggle (entering fullscreen requires a user gesture, so it can't be automatic).
+  // Feature-detected — the button self-hides where the page Fullscreen API is unavailable (e.g. iPadOS).
+  const fullscreenSupported = typeof document !== 'undefined' && document.fullscreenEnabled;
+  let isFullscreen = $state(false);
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // request/exit can reject (permissions, transient state) — ignore; the label stays in sync via
+      // the fullscreenchange listener below regardless.
+    }
+  }
+
+  // Sync from the source of truth, not the click, so exiting via Esc/system gesture updates the label too.
+  function syncFullscreen() {
+    isFullscreen = !!document.fullscreenElement;
+  }
 </script>
+
+<svelte:document onfullscreenchange={syncFullscreen} />
 
 <header class="top-bar">
   <div class="brand">
@@ -50,6 +72,16 @@
     >🎤 Mic</button>
 
     <button class="pill primary" type="button" onclick={() => practice.randomize()}>Next scale</button>
+
+    {#if fullscreenSupported}
+      <button
+        class="pill"
+        type="button"
+        title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        onclick={toggleFullscreen}
+      >⛶ {isFullscreen ? 'Exit' : 'Fullscreen'}</button>
+    {/if}
 
     <button class="pill icon" type="button" title="Scale settings" aria-label="Scale settings" onclick={onOpenSettings}>⚙</button>
 
