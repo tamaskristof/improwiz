@@ -1,6 +1,7 @@
 <script lang="ts">
   import { input } from '../state/input.svelte';
   import { practice } from '../state/practice.svelte';
+  import { quiz } from '../state/quiz.svelte';
   import { theme } from '../state/theme.svelte';
 
   interface Props {
@@ -23,7 +24,8 @@
 
   <div class="divider"></div>
   <div class="tabs">
-    <span class="tab is-active">Free Play</span>
+    <button class="tab" class:is-active={!quiz.active} type="button" onclick={() => quiz.setActive(false)}>Free Play</button>
+    <button class="tab" class:is-active={quiz.active} type="button" onclick={() => quiz.setActive(true)}>Find the Scale</button>
   </div>
 
   <div class="right">
@@ -97,11 +99,16 @@
   }
 
   .tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0 0 3px;
+    cursor: pointer;
     font: 700 13px var(--font-body);
     color: var(--muted);
-    padding-bottom: 3px;
-    border-bottom: 2px solid transparent;
   }
+
+  .tab:hover { color: var(--ink); }
 
   .tab.is-active {
     color: var(--primary);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import AnnotationZone from './components/AnnotationZone.svelte';
+  import ChordStrip from './components/ChordStrip.svelte';
   import Keyboard from './components/Keyboard.svelte';
   import SettingsDrawer from './components/SettingsDrawer.svelte';
   import StatusZone from './components/StatusZone.svelte';
@@ -19,6 +20,9 @@
   let micController: MicController | null = null;
   let computerKeys: ComputerKeysController | null = null;
   let settingsOpen = $state(false);
+  // Chord being previewed from the strip — a single voicing from C4, as MIDI notes. Lights those
+  // keys on the keyboard and whispers the rest; sounds nothing (hover, not press).
+  let highlightNotes = $state<Set<number> | undefined>(undefined);
 
   function toggleMic() {
     if (micController) {
@@ -115,11 +119,13 @@
 <TopBar onToggleMic={toggleMic} onPanic={panic} onOpenSettings={() => (settingsOpen = true)} />
 <StatusZone />
 <AnnotationZone />
+<ChordStrip onHover={(notes) => (highlightNotes = notes ?? undefined)} />
 <Keyboard
   scaleNotes={practice.scaleNotes}
   rootPitchClass={practice.rootPitchClass}
   characteristicNotes={practice.characteristicNotes}
   pressedKeys={input.pressedKeys}
+  {highlightNotes}
   onNoteOn={(midi) => { input.press(midi); audio.noteOn(midi, 0.7); }}
   onNoteOff={(midi) => { input.release(midi); audio.noteOff(midi); }}
 />

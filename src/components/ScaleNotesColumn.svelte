@@ -5,17 +5,29 @@
     formatDerivation,
     getDegreeLabel,
     getNoteRole,
+    getStabilityRole,
+    getTensionNotes,
+    getTonicChordTones,
     prettifyAccidental,
     type NoteRole,
+    type StabilityRole,
   } from '../lib/scales';
   import { practice } from '../state/practice.svelte';
+  import { quiz } from '../state/quiz.svelte';
 
-  const ROLE_WORD: Record<Exclude<NoteRole, null>, string> = {
-    root: 'Root',
+  // How stable each note is over the scale — see getStabilityRole for why this is
+  // stability rather than the classical tonic/subdominant/dominant functions.
+  const ROLE_WORD: Record<Exclude<StabilityRole, null>, string> = {
+    tonic: 'Tonic',
+    stable: 'Stable',
+    tension: 'Tension',
     characteristic: 'Characteristic',
-    scale: 'Scale',
+    colour: 'Colour',
   };
 
+  // The note letter keeps its original three-colour axis (brass / rose / teal),
+  // shared with the keyboard. Stability is a second, orthogonal axis, carried by
+  // the word alone so no fourth accent hue enters the palette.
   function roleColor(role: NoteRole): string {
     return role === 'root'           ? 'var(--n-root)'
          : role === 'characteristic' ? 'var(--n-tension)'
@@ -23,17 +35,29 @@
          : 'var(--faint)';
   }
 
+  // Derived here rather than in practice state: this column is the only consumer
+  // (unlike characteristicNotes, which App.svelte also feeds to the keyboard).
+  let tonicChordTones = $derived(getTonicChordTones(practice.rootPitchClass, practice.modeName));
+  let tensionNotes = $derived(getTensionNotes(practice.rootPitchClass, practice.modeName));
+
   let rows = $derived(
     (SCALE_DEFS[practice.modeName] ?? []).map((interval) => {
       const pc = (practice.rootPitchClass + interval) % 12;
       const role = getNoteRole(pc, practice.rootPitchClass, practice.characteristicNotes, practice.scaleNotes);
+      const stability = getStabilityRole(
+        pc, practice.rootPitchClass, tonicChordTones, tensionNotes,
+        practice.characteristicNotes, practice.scaleNotes);
+      const revealed = !quiz.active || quiz.foundNotes.has(pc);
       return {
         pc,
-        name: prettifyAccidental(ROOT_NAMES[pc]),
-        degree: getDegreeLabel(interval),
+        name: revealed ? prettifyAccidental(ROOT_NAMES[pc]) : '?',
+        degree: revealed ? getDegreeLabel(interval) : '?',
         role,
-        word: role ? ROLE_WORD[role] : '',
-        color: roleColor(role),
+        stability,
+        // Masked in quiz mode along with the name and degree — the role would
+        // otherwise narrow down which note is hiding behind the '?'.
+        word: revealed && stability ? ROLE_WORD[stability] : '',
+        color: revealed ? roleColor(role) : 'var(--faint)',
       };
     }),
   );
@@ -52,7 +76,7 @@
     {#each rows as row (row.pc)}
       <div class="note-row">
         <span class="note-letter" style="color: {row.color}">{row.name}</span>
-        <span class="note-degree" class:is-characteristic={row.role === 'characteristic'} style={row.role === 'characteristic' ? `color: ${row.color}` : ''}>{row.degree} · {row.word}</span>
+        <span class="note-degree" class:is-characteristic={row.role === 'characteristic'} style={row.role === 'characteristic' ? `color: ${row.color}` : ''}>{row.degree}{#if row.word}{' '}<span class="note-word" class:is-tension={row.stability === 'tension'}>· {row.word}</span>{/if}</span>
       </div>
     {/each}
   </div>
@@ -118,6 +142,16 @@
 
   .note-degree.is-characteristic {
     font-weight: 700;
+  }
+
+  /* Own span, so a note that is both characteristic and a tension (Phrygian's ♭2)
+     keeps the rose+bold degree while the word still reads as a caveat. Grey rather
+     than a fourth accent hue, matching how the keyboard greys out-of-scale keys —
+     but --n-avoid sits close to the --faint the degree already uses, and the two
+     invert between themes, so the italic is what actually carries the distinction. */
+  .note-word.is-tension {
+    color: var(--n-avoid);
+    font-style: italic;
   }
 
   .hairline {

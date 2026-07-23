@@ -1,5 +1,6 @@
 // src/state/practice.svelte.ts — current key/mode selection, scale settings, randomize()
 
+import { getDiatonicChords, type ChordVoicing, type DiatonicChord } from '../lib/chords';
 import {
   DEFAULT_ENABLED_SCALES,
   SCALE_DEFS,
@@ -9,6 +10,7 @@ import {
   getSiblings,
   randomKeyAndMode,
 } from '../lib/scales';
+import { quiz } from './quiz.svelte';
 import { score } from './score.svelte';
 import type {
   Derivation,
@@ -19,6 +21,7 @@ import type {
 } from '../lib/types';
 
 const LS_KEY = 'improwiz_enabled_scales';
+const LS_VOICING_KEY = 'improwiz_chord_voicing';
 
 function loadEnabledScales(): ScaleName[] {
   try {
@@ -28,6 +31,10 @@ function loadEnabledScales(): ScaleName[] {
     // fall through to default
   }
   return DEFAULT_ENABLED_SCALES;
+}
+
+function loadChordVoicing(): ChordVoicing {
+  return localStorage.getItem(LS_VOICING_KEY) === 'sevenths' ? 'sevenths' : 'triads';
 }
 
 class PracticeState {
@@ -41,6 +48,20 @@ class PracticeState {
   characteristicNotes = $state<Set<PitchClass>>(new Set());
   siblings          = $state<Sibling[]>([]);
   related           = $state<RelatedScale[]>([]);
+  chords            = $state<DiatonicChord[]>([]);
+
+  chordVoicing      = $state<ChordVoicing>(loadChordVoicing());
+
+  /**
+   * Swapping triads ↔ sevenths re-spells the same scale, so it deliberately isn't a run
+   * boundary — only randomize() ends a run.
+   */
+  setChordVoicing(voicing: ChordVoicing): void {
+    if (this.chordVoicing === voicing) return;
+    this.chordVoicing = voicing;
+    this.chords = getDiatonicChords(this.rootPitchClass, this.modeName, voicing);
+    localStorage.setItem(LS_VOICING_KEY, voicing);
+  }
 
   isEnabled(name: ScaleName): boolean {
     return this.enabledScales.includes(name);
@@ -95,8 +116,10 @@ class PracticeState {
     this.characteristicNotes  = characteristicNotes;
     this.siblings             = getSiblings(rootPitchClass, modeName);
     this.related              = findRelatedScales(rootPitchClass, modeName);
+    this.chords               = getDiatonicChords(rootPitchClass, modeName, this.chordVoicing);
 
     score.beginRun(`${rootName} ${modeName}`, { scaleNotes, rootPitchClass, chordNotes: [] });
+    quiz.reset();
   }
 }
 

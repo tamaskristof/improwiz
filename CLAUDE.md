@@ -67,10 +67,37 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   degree apart (`diffScales(...).length === 1`) on the same root, searched across all 31 scales regardless of
   which are enabled; `alterName` respells the moving note (raise: drop a flat else add a sharp; lower: drop a
   sharp else add a flat) so e.g. a raised D shows as D♯, not the fixed-spelling `ROOT_NAMES` Eb. Also:
-  `getScaleNotes`, `getDiatonicTriads`, `randomKeyAndMode`, `pickRandomChord`, `findRelatedScales` (scales
+  `getScaleNotes`, `randomKeyAndMode`, `findRelatedScales` (scales
   that share the same pitch-class set as the current one, e.g. modal relatives — orthogonal to siblings:
   related scales are the same notes on a different root, siblings are a different note on the same root),
-  `getStepSizes`. Covered by `tests/scales.test.ts`.
+  `getStepSizes`. `getStabilityRole(...)` labels each note of the current scale for
+  `ScaleNotesColumn.svelte` as tonic / stable / tension / characteristic / colour, from
+  `getTonicChordTones` (degrees 1-3-5 stacked *by index* for 7-note scales — a pitch-class search
+  mispicks the third in rotations like `Phrygian b4`, which contains both a 3 and a 4; the 3
+  odd-cardinality scales skip degrees so they do fall back to a pitch-class search, preferring a
+  natural 5 so the Blues ♭5 stays a colour tone) and `getTensionNotes` (scale tones a semitone *above*
+  a tonic chord tone). This is deliberately **not** the classical tonic/subdominant/dominant functions:
+  those need the 4–7 tritone resolving inward with a leading tone, which the ♭7 modes don't have,
+  Locrian has no perfect fifth to be a dominant at all, and modal playing avoids the very V→I cadence
+  that would give the labels meaning — over one static scale, stability is what a player can act on.
+  Tension outranks characteristic when a note is both (Phrygian's ♭2); the column still renders
+  characteristic notes in rose + bold, so neither fact is lost. Covered by `tests/scales.test.ts`.
+- **`src/lib/chords.ts`** — pure chord logic in **both** directions, sharing one naming table.
+  Backward: `identifyChord(pitchClasses, bassPitchClass?)` names what's currently held (drives
+  `ChordDisplay.svelte`), resolving inversions and the rotationally-symmetric °7/+ from the bass note.
+  Forward: `getDiatonicChords(root, modeName, 'triads' | 'sevenths')` builds the chords a scale contains
+  (drives `ChordStrip.svelte`). Both go through `suffixForIntervals()` → `CHORD_TEMPLATES`, so a chord is
+  spelled identically whether you played it or read it off the strip — **add new qualities to that one
+  table**, not to a caller. It returns `null` rather than `''` for an unmatched interval set, because an
+  empty suffix silently spells an unknown stack as a plain major triad (the bug the old
+  `getDiatonicTriads` in scales.ts had before it was deleted). This module lives downstream of
+  `scales.ts` and imports from it; **never import chords.ts from scales.ts** — that's a cycle, and it's
+  why the forward builder lives here rather than next to `getScaleNotes`. `getDiatonicChords` stacks
+  thirds **by index** (degrees d, d+2, d+4[, d+6]) for the same reason `getTonicChordTones` does, and
+  returns `[]` for the 3 odd-cardinality scales, which skip degrees — callers must say so rather than
+  render an empty row. Roman numerals take their case from the triad underneath, so `ii` and `ii7` read
+  as the same degree, with `°`/`+`/`ø` symbols. A test in `tests/chords.test.ts` sweeps all 31 scales ×
+  12 roots × both voicings and asserts nothing falls through unnamed — run it after touching the table.
 - **`src/lib/tracker.ts`** — pure logic. Records what was played during a "run" (one randomized key/mode) and
   grades it: `startRun()` / `recordNoteOn()` / `recordNoteOff()` / `endRun()`, plus `getRunScore()`, which
   scores the run *in progress* without disturbing it so the card can update live. `randomize()` in
@@ -199,7 +226,10 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   (persisted to `localStorage` under `improwiz_enabled_scales`, defaulting to `DEFAULT_ENABLED_SCALES` on
   first run; at least one scale must stay enabled — enforced in `setModeEnabled`/`setFamilyEnabled`).
   `randomize()` is the single method that updates the entire selection and hands off to
-  `score.svelte.ts`'s `beginRun()` for the run-boundary bookkeeping.
+  `score.svelte.ts`'s `beginRun()` for the run-boundary bookkeeping. Also holds `chords` (the scale's
+  diatonic chords, from `getDiatonicChords`) and `chordVoicing` (`'triads' | 'sevenths'`, persisted under
+  `improwiz_chord_voicing`) — `setChordVoicing()` recomputes `chords` in place and is deliberately **not**
+  a run boundary, since re-spelling the same scale isn't a new run.
 - **`src/state/score.svelte.ts`** — live/last-run score summaries. `beginRun()` banks the previous run
   (only if it reached a grade) and starts the new one; `refresh()` re-reads `getRunScore()` and is called
   after every note event plus a 250ms tick while any key is held (`hasHeldNotes()`) — a held note keeps
@@ -215,6 +245,28 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   gets the neutral `--n-avoid` grey at `opacity: 0.8` (`.held.avoid`) — `app.css` forbids a fourth accent
   hue, so grey rather than a red, and it reads as "off the map" instead of as an error. It used to render
   nothing at all for out-of-scale notes, which was indistinguishable from the key not registering.
+  The optional `highlightNotes` prop is a set of **MIDI notes** (not pitch classes) — one voicing of a
+  chord previewed from `ChordStrip.svelte`, so it lights a single instance from C4 rather than every octave
+  of each pitch class. While it's non-empty (`previewing`), the previewed keys render at full-saturation
+  role colour with their note label (the same `.fill` a held key gets), and every *other* resting role cap
+  drops to a `0.07` whisper (`.cap.dimmed`) — so only the voiced chord reads. This replaced an earlier
+  `.ring` outline that lit every octave; the point now is "here is the chord, from C4", not "where do these
+  pitch classes appear". Suppressed while `quiz.active`.
+- **`src/components/ChordStrip.svelte`** — the scale's diatonic chords as a full-width chip row between
+  `AnnotationZone` and `Keyboard` (full-width because the annotation grid is already tight at
+  `300px 1fr 320px`, and 7 chords read better as one row). It's a CSS grid of equal columns split by
+  hairline dividers (one column per chord), each carrying a Roman numeral and a chord name as *text*. The
+  chord **name** is coloured by triad `quality` (from `getDiatonicChords`): minor → `--n-chord` teal,
+  major → `--ink`, dim → `--n-tension` rose, with a `minor/major/dim` legend in the head; augmented shares
+  the major hue (it has a major third) and leans on its `+` symbol, so no fourth accent hue enters. The
+  **tonic** column additionally gets a brass `border-top` accent, independent of quality. Hovering calls
+  back up to `App.svelte` to set `Keyboard`'s `highlightNotes` (the voiced chord); pressing voices the chord
+  in close position and plays it through `audio` — same voicing as the highlight, so what lights is what
+  sounds. Each chord's root is anchored at its scale-degree position above the tonic (tonic in the C4
+  octave), so the strip rises monotonically left-to-right instead of an octave-wrapped root dropping a
+  chord backwards. It deliberately **never** calls `recordNoteOn`/`recordNoteOff`, since clicking a
+  chord is exploring, not playing (the same reason on-screen key clicks stay unscored). In quiz mode every
+  chip masks to `?` and is disabled, since naming the chords would hand over the whole scale.
 - **`src/components/InfoPanel.svelte`** + children (`ScaleDisplay`, `FlavorCard`, `SiblingChips`,
   `RelatedScales`, `ScaleSettings`, `RunScoreCard`) — each owns its own scoped `<style>` block carved out of
   the old single `style.css`; some small rules (e.g. a `.label` style) are intentionally duplicated

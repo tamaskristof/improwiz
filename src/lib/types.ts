@@ -18,22 +18,11 @@ export type NoteOnHandler = (midi: MidiNote, velocity: number) => void;
 export type NoteOffHandler = (midi: MidiNote) => void;
 export type StatusHandler = (status: string | null) => void;
 
-export interface Triad {
-  label: string;
-  notes: PitchClass[];
-}
-
-export interface Chord {
-  label: string;
-  notes: PitchClass[];
-}
-
 export interface KeyAndMode {
   rootPitchClass: PitchClass;
   rootName: string;
   modeName: ScaleName;
   scaleNotes: Set<PitchClass>;
-  triads: Triad[];
 }
 
 export interface ScaleInfo {

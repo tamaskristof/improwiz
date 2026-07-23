@@ -2,19 +2,26 @@
   import { SCALE_INFO } from '../lib/scales';
   import { audio } from '../state/audio.svelte';
   import { practice } from '../state/practice.svelte';
+  import { quiz } from '../state/quiz.svelte';
   import { score } from '../state/score.svelte';
 
   let alias = $derived(SCALE_INFO[practice.modeName]?.alias ?? null);
 
-  // Score ring reads the run in progress, falling back to the last graded run.
+  // Score ring reads the run in progress, falling back to the last graded run — except in quiz
+  // mode, where the free-improv score is meaningless and the ring tracks notes found instead.
   let summary = $derived(score.liveSummary ?? score.lastSummary);
-  let ringValue = $derived(
-    summary ? (summary.score ?? Math.round(summary.accuracy * 100)) : null,
+  let ringPct = $derived(
+    quiz.active
+      ? (practice.scaleNotes.size ? Math.round((quiz.foundNotes.size / practice.scaleNotes.size) * 100) : 0)
+      : (summary ? (summary.score ?? Math.round(summary.accuracy * 100)) : null),
+  );
+  let ringText = $derived(
+    quiz.active ? `${quiz.foundNotes.size}/${practice.scaleNotes.size}` : (ringPct ?? '—'),
   );
   let ringStyle = $derived(
-    ringValue === null
+    ringPct === null
       ? 'background: var(--track)'
-      : `background: conic-gradient(var(--n-chord) 0 ${ringValue}%, var(--track) ${ringValue}% 100%)`,
+      : `background: conic-gradient(var(--n-chord) 0 ${ringPct}%, var(--track) ${ringPct}% 100%)`,
   );
 </script>
 
@@ -38,7 +45,7 @@
       </div>
     </div>
     <div class="score-ring" style={ringStyle} aria-label="Overall score">
-      <div class="score-ring-inner"><span class="score-ring-num">{ringValue ?? '—'}</span></div>
+      <div class="score-ring-inner"><span class="score-ring-num">{ringText}</span></div>
     </div>
   </div>
 </section>

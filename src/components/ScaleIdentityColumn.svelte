@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SCALE_INFO } from '../lib/scales';
   import { practice } from '../state/practice.svelte';
+  import { quiz } from '../state/quiz.svelte';
   import { score } from '../state/score.svelte';
 
   let feel = $derived(SCALE_INFO[practice.modeName]?.feel ?? '');
@@ -9,11 +10,22 @@
   // are the tracker fields that actually exist). Percent, or null before there's
   // anything to grade.
   let summary = $derived(score.liveSummary ?? score.lastSummary);
-  let metrics = $derived([
-    { label: 'In-key', pct: summary ? Math.round(summary.accuracy * 100) : null },
-    { label: 'Variety', pct: summary ? Math.round(summary.varietyRatio * 100) : null },
-    { label: 'Coverage', pct: summary ? Math.round((summary.degreesUsed / summary.scaleSize) * 100) : null },
-  ]);
+
+  // In quiz mode the free-improv accuracy metrics don't mean anything — you're
+  // deliberately testing wrong notes — so swap the whole grid for one readout.
+  let metrics = $derived(
+    quiz.active
+      ? [{
+          label: 'Notes found',
+          pct: practice.scaleNotes.size ? Math.round((quiz.foundNotes.size / practice.scaleNotes.size) * 100) : 0,
+          text: `${quiz.foundNotes.size} / ${practice.scaleNotes.size}`,
+        }]
+      : [
+          { label: 'In-key', pct: summary ? Math.round(summary.accuracy * 100) : null, text: null },
+          { label: 'Variety', pct: summary ? Math.round(summary.varietyRatio * 100) : null, text: null },
+          { label: 'Coverage', pct: summary ? Math.round((summary.degreesUsed / summary.scaleSize) * 100) : null, text: null },
+        ],
+  );
 </script>
 
 <div class="column identity-column">
@@ -25,7 +37,7 @@
         <div class="metric">
           <div class="metric-head">
             <span>{m.label}</span>
-            <span class="metric-val">{m.pct ?? '—'}</span>
+            <span class="metric-val">{m.text ?? m.pct ?? '—'}</span>
           </div>
           <div class="metric-track"><div class="metric-fill" style="width: {m.pct ?? 0}%"></div></div>
         </div>

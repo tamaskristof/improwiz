@@ -1,7 +1,6 @@
 // src/lib/scales.ts — Scale/mode data and logic
 
 import type {
-  Chord,
   Derivation,
   DegreeMove,
   KeyAndMode,
@@ -10,7 +9,6 @@ import type {
   ScaleInfo,
   ScaleName,
   Sibling,
-  Triad,
 } from './types';
 
 /** Interval arrays (semitones from root) for each supported mode/scale. */
@@ -462,42 +460,6 @@ export function getScaleNotes(rootPitchClass: PitchClass, modeName: ScaleName): 
 }
 
 /**
- * Returns diatonic triads for 7-note modes (stacked thirds within the scale).
- * For pentatonic/blues scales returns an empty array — no conventional triads.
- */
-export function getDiatonicTriads(rootPitchClass: PitchClass, modeName: ScaleName): Triad[] {
-  const intervals = SCALE_DEFS[modeName];
-  if (!intervals || intervals.length !== 7) return [];
-
-  const triads: Triad[] = [];
-  const degreeNames = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-
-  for (let d = 0; d < 7; d++) {
-    // Root, third, fifth of triad (scale degrees d, d+2, d+4)
-    const r = (rootPitchClass + intervals[d]) % 12;
-    const t = (rootPitchClass + intervals[(d + 2) % 7]) % 12;
-    const f = (rootPitchClass + intervals[(d + 4) % 7]) % 12;
-
-    // Determine quality from interval between root and third
-    const thirdInterval = (t - r + 12) % 12;
-    const fifthInterval = (f - r + 12) % 12;
-
-    let quality = '';
-    if (thirdInterval === 4 && fifthInterval === 7) quality = '';        // major
-    else if (thirdInterval === 3 && fifthInterval === 7) quality = 'm';  // minor
-    else if (thirdInterval === 3 && fifthInterval === 6) quality = '°';  // diminished
-    else if (thirdInterval === 4 && fifthInterval === 8) quality = '+';  // augmented
-
-    const rootName = ROOT_NAMES[r];
-    triads.push({
-      label: `${degreeNames[d]} — ${rootName}${quality}`,
-      notes: [r, t, f],
-    });
-  }
-  return triads;
-}
-
-/**
  * Returns the semitone step sizes between consecutive scale degrees,
  * including the wrap-around step back to the next octave root.
  * @param intervals — sorted interval array from SCALE_DEFS
@@ -546,20 +508,7 @@ export function randomKeyAndMode(enabledModes: ScaleName[] | null = null): KeyAn
   const rootPitchClass = Math.floor(Math.random() * 12);
   const rootName = ROOT_NAMES[rootPitchClass];
   const scaleNotes = getScaleNotes(rootPitchClass, modeName);
-  const triads     = getDiatonicTriads(rootPitchClass, modeName);
-  return { rootPitchClass, rootName, modeName, scaleNotes, triads };
-}
-
-/**
- * Picks one random triad from the triads array.
- * Falls back to a tonic triad placeholder when triads is empty (pentatonic/blues).
- * @param rootPitchClass  used for fallback
- */
-export function pickRandomChord(triads: Triad[], rootPitchClass: PitchClass = 0): Chord {
-  if (triads.length === 0) {
-    return { label: `${ROOT_NAMES[rootPitchClass]} (root)`, notes: [rootPitchClass] };
-  }
-  return triads[Math.floor(Math.random() * triads.length)];
+  return { rootPitchClass, rootName, modeName, scaleNotes };
 }
 
 // ── Display helpers for the v5 annotation zone & keyboard ─────
@@ -584,6 +533,88 @@ export function getNoteRole(
   if (characteristicNotes.has(pc)) return 'characteristic';
   if (scaleNotes.has(pc)) return 'scale';
   return null;
+}
+
+/**
+ * The pitch classes of the tonic triad — the notes that read as "home" over a
+ * static scale.
+ *
+ * 7-note scales stack scale degrees 1/3/5 by index, the same rule
+ * `getDiatonicChords` (lib/chords.ts) uses for degree I. Index stacking (rather than hunting for
+ * a pitch class that looks like a third) is what makes the awkward rotations come
+ * out right: `Phrygian b4` is [0,1,3,4,7,8,10], which contains *both* 3 and 4, and
+ * only the index rule picks the 3.
+ *
+ * The 3 odd-cardinality scales skip degrees, so index stacking is meaningless
+ * there and they fall back to a pitch-class search. The fifth prefers a natural 5
+ * over a ♭5, so the Blues scale's ♭5 stays a colour tone (a blue note) rather than
+ * being promoted to a chord tone.
+ */
+export function getTonicChordTones(rootPitchClass: PitchClass, modeName: ScaleName): Set<PitchClass> {
+  const intervals = SCALE_DEFS[modeName];
+  if (!intervals) return new Set();
+
+  const pcs = (is: number[]) => new Set(is.map(i => (rootPitchClass + i) % 12));
+
+  if (intervals.length === 7) return pcs([intervals[0], intervals[2], intervals[4]]);
+
+  const pick = (candidates: number[]) => candidates.find(i => intervals.includes(i));
+  const third = pick([3, 4]);
+  const fifth = pick([7, 6, 8]);
+  return pcs([0, ...(third === undefined ? [] : [third]), ...(fifth === undefined ? [] : [fifth])]);
+}
+
+/**
+ * The scale's avoid notes: scale tones sitting a semitone *above* a tonic chord
+ * tone, where the clash is close enough to pull rather than colour. This is the
+ * standard chord-scale rule, and it reproduces the received wisdom without any
+ * per-scale data — Ionian's 4th and Aeolian's ♭6 come out as tensions, Lydian
+ * comes out with none at all (which is exactly why players reach for it), and the
+ * Blues ♭5 stays clear because it sits a semitone *below* the fifth, not above.
+ */
+export function getTensionNotes(rootPitchClass: PitchClass, modeName: ScaleName): Set<PitchClass> {
+  const intervals = SCALE_DEFS[modeName];
+  if (!intervals) return new Set();
+  const chordTones = getTonicChordTones(rootPitchClass, modeName);
+  const tensions = new Set<PitchClass>();
+  for (const i of intervals) {
+    const pc = (rootPitchClass + i) % 12;
+    if (!chordTones.has(pc) && chordTones.has((pc + 11) % 12)) tensions.add(pc);
+  }
+  return tensions;
+}
+
+/**
+ * How stable a note is over the current scale — what the left column prints next
+ * to each degree.
+ *
+ * Deliberately *not* the classical tonic/subdominant/dominant functions: those run
+ * on the 4–7 tritone resolving inward with a leading tone, which the ♭7 modes
+ * (Dorian, Mixolydian, Aeolian, Phrygian) don't have, Locrian has no perfect fifth
+ * to be a dominant at all, and modal playing avoids the very V→I cadence that
+ * would give the labels meaning — it drags the ear back to the parent major. Over
+ * one static scale, stability is the distinction a player can actually act on.
+ *
+ * Tension outranks characteristic because a note can be both (Phrygian's ♭2 is the
+ * textbook case) and the warning is the more useful of the two; the left column
+ * still renders characteristic notes in rose + bold, so neither fact is lost.
+ */
+export type StabilityRole = 'tonic' | 'stable' | 'tension' | 'characteristic' | 'colour' | null;
+
+export function getStabilityRole(
+  pc: PitchClass,
+  rootPitchClass: PitchClass,
+  tonicChordTones: Set<PitchClass>,
+  tensionNotes: Set<PitchClass>,
+  characteristicNotes: Set<PitchClass>,
+  scaleNotes: Set<PitchClass>,
+): StabilityRole {
+  if (!scaleNotes.has(pc)) return null;
+  if (pc === rootPitchClass) return 'tonic';
+  if (tonicChordTones.has(pc)) return 'stable';
+  if (tensionNotes.has(pc)) return 'tension';
+  if (characteristicNotes.has(pc)) return 'characteristic';
+  return 'colour';
 }
 
 /**

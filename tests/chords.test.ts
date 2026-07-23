@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { identifyChord } from '../src/lib/chords';
+import { getDiatonicChords, identifyChord } from '../src/lib/chords';
+import { SCALE_DEFS } from '../src/lib/scales';
 
 describe('identifyChord — full chords', () => {
   it('names the four triad qualities from C', () => {
@@ -97,5 +98,87 @@ describe('identifyChord — partial and empty states', () => {
     expect(c!.full).toBe(false);
     expect(c!.rootPitchClass).toBeNull();
     expect(c!.label).toBe('C C♯ D E♭ E');
+  });
+});
+
+describe('getDiatonicChords', () => {
+  const labels = (root: number, mode: string, voicing?: 'triads' | 'sevenths') =>
+    getDiatonicChords(root, mode, voicing).map(c => c.label);
+  const numerals = (root: number, mode: string, voicing?: 'triads' | 'sevenths') =>
+    getDiatonicChords(root, mode, voicing).map(c => c.numeral);
+
+  it('builds the triads of C Ionian', () => {
+    expect(labels(0, 'Ionian')).toEqual(['C', 'Dm', 'Em', 'F', 'G', 'Am', 'B°']);
+  });
+
+  it('builds the sevenths of C Ionian', () => {
+    expect(labels(0, 'Ionian', 'sevenths'))
+      .toEqual(['Cmaj7', 'Dm7', 'Em7', 'Fmaj7', 'G7', 'Am7', 'Bm7♭5']);
+  });
+
+  it('cases the numerals by quality, and keeps the case across voicings', () => {
+    expect(numerals(0, 'Ionian')).toEqual(['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°']);
+    // Same degrees, same cases — the vii becomes half-diminished rather than diminished.
+    expect(numerals(0, 'Ionian', 'sevenths')).toEqual(['I', 'ii', 'iii', 'IV', 'V', 'vi', 'viiø']);
+  });
+
+  it('labels each triad quality for colour coding', () => {
+    const qualities = (root: number, mode: string, voicing?: 'triads' | 'sevenths') =>
+      getDiatonicChords(root, mode, voicing).map(c => c.quality);
+    expect(qualities(0, 'Ionian'))
+      .toEqual(['major', 'minor', 'minor', 'major', 'major', 'minor', 'dim']);
+    // Quality is the triad's, so it survives the seventh voicing unchanged.
+    expect(qualities(0, 'Ionian', 'sevenths'))
+      .toEqual(['major', 'minor', 'minor', 'major', 'major', 'minor', 'dim']);
+    // Harmonic minor's III is augmented.
+    expect(qualities(0, 'Harmonic Minor')[2]).toBe('aug');
+  });
+
+  it('gives each mode the chord that carries its flavour', () => {
+    // Lydian's #4 makes II major, where Ionian has ii minor.
+    expect(labels(0, 'Lydian')[1]).toBe('D');
+    // Mixolydian's b7 makes bVII major.
+    expect(labels(0, 'Mixolydian')[6]).toBe('B♭');
+    // Dorian's natural 6 makes IV major, where Aeolian has iv minor.
+    expect(labels(0, 'Dorian')[3]).toBe('F');
+    expect(labels(0, 'Aeolian')[3]).toBe('Fm');
+  });
+
+  it('prettifies accidentals in chord roots', () => {
+    expect(labels(6, 'Ionian')[0]).toBe('F♯');
+    expect(labels(10, 'Ionian')[0]).toBe('B♭');
+  });
+
+  it('stacks by index, so a rotation containing both a 3 and a 4 picks the right third', () => {
+    // Phrygian b4 has a b3 and a b4; a pitch-class search for "a third above" would
+    // grab the b4. Its tonic chord must still be the minor triad on degrees 1-3-5.
+    const tonic = getDiatonicChords(0, 'Phrygian b4')[0];
+    expect(tonic.notes).toEqual([0, 3, 7]);
+    expect(tonic.label).toBe('Cm');
+  });
+
+  it('returns nothing for the odd-cardinality scales', () => {
+    for (const mode of ['Major Pentatonic', 'Minor Pentatonic', 'Blues']) {
+      expect(getDiatonicChords(0, mode)).toEqual([]);
+      expect(getDiatonicChords(0, mode, 'sevenths')).toEqual([]);
+    }
+  });
+
+  it('names every chord of every scale in every key', () => {
+    const unnamed = new Set<string>();
+    for (const mode of Object.keys(SCALE_DEFS)) {
+      for (let root = 0; root < 12; root++) {
+        for (const voicing of ['triads', 'sevenths'] as const) {
+          for (const chord of getDiatonicChords(root, mode, voicing)) {
+            if (chord.suffix === null) {
+              const rel = chord.notes.map(pc => (pc - chord.notes[0] + 12) % 12);
+              unnamed.add(`${mode} ${chord.numeral} [${rel.join(',')}]`);
+            }
+            expect(['major', 'minor', 'dim', 'aug']).toContain(chord.quality);
+          }
+        }
+      }
+    }
+    expect([...unnamed].sort()).toEqual([]);
   });
 });

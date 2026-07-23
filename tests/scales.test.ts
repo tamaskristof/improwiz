@@ -11,7 +11,10 @@ import {
   getDerivation,
   getNoteRole,
   getSiblings,
+  getStabilityRole,
   getStepSizes,
+  getTensionNotes,
+  getTonicChordTones,
   prettifyAccidental,
 } from '../src/lib/scales';
 
@@ -145,6 +148,113 @@ describe('getNoteRole', () => {
 
   it('returns null for notes outside the scale', () => {
     expect(getNoteRole(1, 0, characteristic, scale)).toBeNull();
+  });
+});
+
+describe('getTonicChordTones', () => {
+  const sorted = (s: Set<number>) => [...s].sort((a, b) => a - b);
+
+  it('stacks degrees 1/3/5 by index for 7-note scales', () => {
+    expect(sorted(getTonicChordTones(0, 'Ionian'))).toEqual([0, 4, 7]);
+    expect(sorted(getTonicChordTones(0, 'Aeolian'))).toEqual([0, 3, 7]);
+  });
+
+  it('gives Locrian its diminished tonic triad rather than inventing a perfect fifth', () => {
+    expect(sorted(getTonicChordTones(0, 'Locrian'))).toEqual([0, 3, 6]);
+  });
+
+  it('picks the third by degree index when the scale contains both a 3 and a 4', () => {
+    // Phrygian b4 is [0,1,3,4,7,8,10] — a pitch-class search would grab the 4.
+    expect(SCALE_DEFS['Phrygian b4']).toEqual([0, 1, 3, 4, 7, 8, 10]);
+    expect(sorted(getTonicChordTones(0, 'Phrygian b4'))).toEqual([0, 3, 7]);
+  });
+
+  it('falls back to a pitch-class search for the odd-cardinality scales', () => {
+    expect(sorted(getTonicChordTones(0, 'Major Pentatonic'))).toEqual([0, 4, 7]);
+    expect(sorted(getTonicChordTones(0, 'Minor Pentatonic'))).toEqual([0, 3, 7]);
+  });
+
+  it('prefers the natural 5 over the ♭5, so the blue note stays a colour tone', () => {
+    // Blues is [0,3,5,6,7,10] — both 6 and 7 are present.
+    expect(sorted(getTonicChordTones(0, 'Blues'))).toEqual([0, 3, 7]);
+  });
+
+  it('transposes with the root', () => {
+    expect(sorted(getTonicChordTones(2, 'Dorian'))).toEqual([2, 5, 9]); // D F A
+  });
+});
+
+describe('getTensionNotes', () => {
+  const sorted = (s: Set<number>) => [...s].sort((a, b) => a - b);
+
+  it('flags the 4th in Ionian — the textbook avoid note', () => {
+    expect(sorted(getTensionNotes(0, 'Ionian'))).toEqual([5]); // F, a semitone above E
+  });
+
+  it('finds none in Lydian, which is exactly why players reach for it', () => {
+    expect(sorted(getTensionNotes(0, 'Lydian'))).toEqual([]);
+  });
+
+  it('finds none in Dorian', () => {
+    expect(sorted(getTensionNotes(2, 'Dorian'))).toEqual([]);
+  });
+
+  it('flags the ♭6 in Aeolian', () => {
+    expect(sorted(getTensionNotes(0, 'Aeolian'))).toEqual([8]); // Ab, a semitone above G
+  });
+
+  it('flags both the ♭2 and the ♭6 in Phrygian', () => {
+    expect(sorted(getTensionNotes(0, 'Phrygian'))).toEqual([1, 8]);
+  });
+
+  it('leaves the Blues ♭5 alone — it sits below the fifth, not above it', () => {
+    expect(sorted(getTensionNotes(0, 'Blues'))).toEqual([]);
+  });
+});
+
+describe('getStabilityRole', () => {
+  // C Ionian: tonic triad C E G, F is the avoid note, no characteristic notes
+  // (Ionian is a derivation anchor).
+  const scale = new Set([0, 2, 4, 5, 7, 9, 11]);
+  const chordTones = getTonicChordTones(0, 'Ionian');
+  const tensions = getTensionNotes(0, 'Ionian');
+  const role = (pc: number, characteristic = new Set<number>()) =>
+    getStabilityRole(pc, 0, chordTones, tensions, characteristic, scale);
+
+  it('ranks the tonic above the other chord tones', () => {
+    expect(role(0)).toBe('tonic');
+    expect(role(4)).toBe('stable');
+    expect(role(7)).toBe('stable');
+  });
+
+  it('marks the avoid note as a tension', () => {
+    expect(role(5)).toBe('tension');
+  });
+
+  it('marks ordinary non-chord scale tones as colour', () => {
+    expect(role(2)).toBe('colour');
+    expect(role(9)).toBe('colour');
+    expect(role(11)).toBe('colour');
+  });
+
+  it('lets tension outrank characteristic when a note is both', () => {
+    // C Phrygian's ♭2 is its characteristic note and also an avoid note; the
+    // warning is the more actionable of the two, and the left column still shows
+    // characteristic notes in rose + bold so neither fact is lost.
+    const phrygian = new Set([0, 1, 3, 5, 7, 8, 10]);
+    expect(getStabilityRole(
+      1, 0, getTonicChordTones(0, 'Phrygian'), getTensionNotes(0, 'Phrygian'),
+      new Set([1]), phrygian,
+    )).toBe('tension');
+  });
+
+  it('ranks characteristic above plain colour tones', () => {
+    expect(role(9, new Set([9]))).toBe('characteristic');
+  });
+
+  it('returns null for notes outside the scale', () => {
+    expect(role(1)).toBeNull();
+    expect(role(6)).toBeNull();
   });
 });
 
