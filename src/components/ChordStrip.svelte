@@ -56,18 +56,31 @@
 
   let sounding: MidiNote[] = [];
 
-  // Clicking a chord is exploring, not playing: like the on-screen piano keys, it never
-  // reaches recordNoteOn/recordNoteOff, so it can't inflate a run's score.
-  function press(chord: DiatonicChord) {
+  // Pressing a chord is exploring, not playing: like the on-screen piano keys, it never
+  // reaches recordNoteOn/recordNoteOff, so it can't inflate a run's score. Press-and-hold
+  // sustains the chord until release — via Pointer Events, so it works identically for
+  // mouse, touch, and pen (a plain mousedown/up never fires on a touchscreen).
+  function press(chord: DiatonicChord, e: PointerEvent) {
     if (!isRevealed(chord)) return;
+    // Suppress the native long-press artefacts on touch (text selection + the iOS/Android
+    // callout menu) so a held chip just sounds the chord.
+    e.preventDefault();
     release();
+    // Capture the pointer so the eventual release still lands here even if the finger/cursor
+    // drifts off the chip mid-hold — the chord sustains until the pointer actually lifts.
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     sounding = voice(chord.notes);
     for (const midi of sounding) audio.noteOn(midi, 0.7);
+    onHover(new Set(sounding)); // light the same voicing on the keyboard while held
   }
 
-  function release() {
+  function release(e?: PointerEvent) {
     for (const midi of sounding) audio.noteOff(midi);
     sounding = [];
+    // Touch/pen leave no lingering hover, so clear the keyboard highlight on release. For a
+    // mouse the cursor is still over the chip, so the highlight persists until mouseleave —
+    // keeping the old hover-preview behaviour.
+    if (e && e.pointerType !== 'mouse') onHover(null);
   }
 
   function enter(chord: DiatonicChord) {
@@ -121,8 +134,10 @@
           disabled={!revealed}
           onmouseenter={() => enter(chord)}
           onmouseleave={leave}
-          onmousedown={() => press(chord)}
-          onmouseup={release}
+          onpointerdown={(e) => press(chord, e)}
+          onpointerup={release}
+          onpointercancel={release}
+          oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="numeral">{revealed ? chord.numeral : '?'}</span>
           <span class="name">{revealed ? chord.label : '?'}</span>
@@ -222,6 +237,12 @@
     background: transparent;
     cursor: pointer;
     font-family: var(--font-body);
+    /* Press-and-hold to sustain a chord: stop the browser claiming the gesture for scroll,
+       text selection, or the long-press callout menu, so a held chip just sounds. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   .chord-chip:first-child {
