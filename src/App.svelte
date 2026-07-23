@@ -8,7 +8,6 @@
   import TopBar from './components/TopBar.svelte';
   import { initComputerKeys, type ComputerKeysController } from './lib/computerKeys';
   import { initMidi } from './lib/midi';
-  import { initMic, type MicController } from './lib/microphone';
   import { recordNoteOff, recordNoteOn } from './lib/tracker';
   import { initWakeLock } from './lib/wakeLock';
   import { audio } from './state/audio.svelte';
@@ -18,33 +17,15 @@
 
   const midiSupported = 'requestMIDIAccess' in navigator;
 
-  let micController: MicController | null = null;
   let computerKeys: ComputerKeysController | null = null;
   let settingsOpen = $state(false);
   // Chord being previewed from the strip — a single voicing from C4, as MIDI notes. Lights those
   // keys on the keyboard and whispers the rest; sounds nothing (hover, not press).
   let highlightNotes = $state<Set<number> | undefined>(undefined);
 
-  function toggleMic() {
-    if (micController) {
-      micController.stop(); // resolves via onStatusChange(null) below
-      micController = null;
-      return;
-    }
-    input.setMicPending(); // instant visual feedback while the permission prompt shows
-    micController = initMic(
-      (midi) => input.press(midi),
-      (midi) => input.release(midi),
-      (status) => {
-        input.setMicStatus(status);
-        if (status === null) micController = null; // clean stop or access-denied/unavailable
-      },
-    );
-  }
-
   // The scored input path, shared by MIDI and the computer keyboard: both deliver real note-on/
   // note-off pairs with honest durations, which is what tracker.ts's duration-weighted scoring needs.
-  // Mouse clicks and mic input light keys but don't score.
+  // Mouse clicks light keys but don't score.
   function playNoteOn(midi: number, velocity: number) {
     input.press(midi);
     recordNoteOn(midi, velocity);
@@ -123,7 +104,7 @@
 
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<TopBar onToggleMic={toggleMic} onPanic={panic} onOpenSettings={() => (settingsOpen = true)} />
+<TopBar onOpenSettings={() => (settingsOpen = true)} />
 <StatusZone />
 <AnnotationZone />
 <ChordStrip onHover={(notes) => (highlightNotes = notes ?? undefined)} />

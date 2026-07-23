@@ -2,18 +2,15 @@
   import { input } from '../state/input.svelte';
   import { practice } from '../state/practice.svelte';
   import { quiz } from '../state/quiz.svelte';
-  import { theme } from '../state/theme.svelte';
 
   interface Props {
-    onToggleMic: () => void;
-    onPanic: () => void;
     onOpenSettings: () => void;
   }
 
-  let { onToggleMic, onPanic, onOpenSettings }: Props = $props();
+  let { onOpenSettings }: Props = $props();
 
-  // A device/mic is live when the status text isn't the idle default.
-  let connected = $derived(input.micActive || input.displayStatus.startsWith('MIDI:'));
+  // A device is live when the status text isn't the idle default.
+  let connected = $derived(input.displayStatus.startsWith('MIDI:'));
 
   // Fullscreen: manual toggle (entering fullscreen requires a user gesture, so it can't be automatic).
   // Feature-detected — the button self-hides where the page Fullscreen API is unavailable (e.g. iPadOS).
@@ -56,21 +53,6 @@
       <span class="status-text">{input.displayStatus}</span>
     </div>
 
-    <button
-      class="pill"
-      type="button"
-      title="Silence all notes (Esc)"
-      onclick={onPanic}
-    >⏹ Panic</button>
-
-    <button
-      class="pill"
-      class:is-active={input.micActive}
-      type="button"
-      title="Toggle microphone pitch detection"
-      onclick={onToggleMic}
-    >🎤 Mic</button>
-
     <button class="pill primary" type="button" onclick={() => practice.randomize()}>Next scale</button>
 
     {#if fullscreenSupported}
@@ -83,9 +65,7 @@
       >⛶ {isFullscreen ? 'Exit' : 'Fullscreen'}</button>
     {/if}
 
-    <button class="pill icon" type="button" title="Scale settings" aria-label="Scale settings" onclick={onOpenSettings}>⚙</button>
-
-    <button class="pill" type="button" onclick={() => theme.toggle()}>{theme.dark ? 'Light mode' : 'Dark mode'}</button>
+    <button class="pill icon" type="button" title="Settings" aria-label="Settings" onclick={onOpenSettings}>⚙</button>
   </div>
 </header>
 
@@ -202,10 +182,4 @@
   }
 
   .pill.primary:hover { filter: brightness(1.08); }
-
-  .pill.is-active {
-    border-color: var(--n-root);
-    color: var(--n-root);
-    animation: iw-pulse 1.6s ease-in-out infinite;
-  }
 </style>

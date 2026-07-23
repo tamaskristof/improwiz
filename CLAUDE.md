@@ -26,12 +26,11 @@ It's installable/offline-capable as a PWA.
   every push to `main` (repo Pages source must be set to "GitHub Actions").
 - No MIDI hardware needed to test manually — the computer keyboard plays (`src/lib/computerKeys.ts`,
   always on) and the SVG keyboard keys are clickable; both fire the same `onNoteOn`/`onNoteOff` callback
-  shape as real MIDI/microphone input. The computer keyboard also feeds run scoring, so that's testable
+  shape as real MIDI input. The computer keyboard also feeds run scoring, so that's testable
   without hardware too; alternatively drive it from the DevTools console via the dev-only debug handle in
   `src/main.ts` (`window.improwiz`): `improwiz.startRun({scaleNotes: improwiz.getScaleNotes(0,'Ionian'),
   rootPitchClass: 0, chordNotes: [0,4,7]})`, then `improwiz.recordNoteOn`/`recordNoteOff`/`endRun`. The
   same handle exposes `improwiz.audio` for firing dense chords at full velocity to check for clipping.
-- Microphone-based note detection can be tested with a real instrument/voice through the "🎤 Mic" button.
 
 ## Architecture
 
@@ -106,8 +105,8 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   than being withheld: accuracy is meaningful from the first note, but a letter grade off two notes isn't, so
   `score`/`grade` are null until `MIN_NOTES_TO_GRADE`. **Only MIDI and the computer keyboard feed the
   tracker** — both deliver real note-on/note-off pairs with honest durations, which is exactly what the
-  duration-weighted scoring below needs. Mic and on-screen clicks light keys but don't score, because mic
-  pitch detection emits spurious notes on attack transients and clicking is for exploring, not playing.
+  duration-weighted scoring below needs. On-screen clicks light keys but don't score, because clicking is
+  for exploring, not playing.
   Scoring is duration-weighted in-scale accuracy (a held wrong
   note hurts, a brushed one barely does) with chromatic passing tones forgiven, plus low-weight chord-tone
   and note-variety bonuses. The tuned constants at the top (`PASSING_MAX_MS`, `MAX_NOTE_MS`,
@@ -123,7 +122,7 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   note-offs for what it was holding. Unsupported-browser detection is the caller's job (`App.svelte`
   checks `'requestMIDIAccess' in navigator` directly and renders the banner reactively). `parseMidiMessage`
   also handles the 3 pedals and 2 wheels via a single `ControllerMessage` union, dispatched through one
-  `onController` callback rather than a handler per CC (computerKeys.ts/microphone.ts have no analog for
+  `onController` callback rather than a handler per CC (computerKeys.ts has no analog for
   any of these, so it stays MIDI-only): **0xB0 CC 64/66/67** (sustain/sostenuto/soft) parse to a boolean,
   thresholded at `value >= 64` like most gear does rather than attempting half-pedaling; **CC 1** (mod
   wheel) to a 0–1 value; and **0xE0** (pitch bend) reconstructs the 14-bit value (`data1` low 7 bits,
@@ -143,12 +142,6 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `MAX_BASE_MIDI` are both C's and shifts are refused rather than clamped at the ends, so the base is
   always a C and the row picture reads the same at every octave. Pure exports covered by
   `tests/computerKeys.test.ts`.
-- **`src/lib/microphone.ts`** — `initMic()` implements real-time pitch detection from the mic using the
-  **McLeod Pitch Method** (normalized square difference function, not raw autocorrelation, to avoid octave
-  errors). Deliberately mirrors midi.ts's `(onNoteOn, onNoteOff, onStatusChange)` signature so callers can
-  treat mic and MIDI input interchangeably. Has hand-tuned constants for silence/onset/stability detection
-  (`AMPLITUDE_THRESHOLD`, `ATTACK_HOLDOFF_MS`, `NOTE_HOLD_MS`, `NSDF_THRESHOLD`) — read the header comment
-  before touching these, they encode specific tradeoffs about attack transients vs. note-decay grace periods.
 - **`src/lib/sound.ts`** — tiny Web Audio synth (`playNote`/`stopNote`/`stopAllNotes`). No longer the
   primary sound source; it's now only the **fallback** `src/state/audio.svelte.ts` plays while the sampled
   piano's samples are still loading (immediate feedback on the first keypresses), then the real piano takes
@@ -160,7 +153,7 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   `stopAllNotes()` at the handover. **This only shows up when sample loading is slow enough to play
   through** — on localhost it loads instantly, so reproduce it with CDP network throttling.
 - **`src/state/audio.svelte.ts`** — the sampled acoustic piano (the actual sound source for MIDI + on-screen
-  keys; **mic input stays silent**, since your instrument already makes the sound). Wraps `@tonejs/piano`
+  keys). Wraps `@tonejs/piano`
   (Salamander Grand). `noteOn(midi, velocity01)`/`noteOff(midi)` map to the library's `keyDown`/`keyUp`, so
   **held keys sustain until release** (unlike the old fixed-decay synth). `allNotesOff()` is the panic
   backstop — `Piano.stopAll()` plus the fallback synth's `stopAllNotes()`, consulting no note bookkeeping
@@ -235,8 +228,7 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   after every note event plus a 250ms tick while any key is held (`hasHeldNotes()`) — a held note keeps
   changing the duration-weighted score with no discrete event to hang off.
 - **`src/state/input.svelte.ts`** — pressed keys (a `SvelteSet<MidiNote>`, from `svelte/reactivity`, so
-  `.has()` reads inside templates stay fine-grained-reactive) plus the status-bar text (MIDI status or mic
-  status — mic takes over the display while active, MIDI status is restored when mic stops).
+  `.has()` reads inside templates stay fine-grained-reactive) plus the status-bar text (the MIDI status).
 - **`src/components/Keyboard.svelte`** — the SVG piano (MIDI range 36–96, i.e. C2–C7), built declaratively:
   white-key geometry computed once, then black keys `{#each}`-ed after them in the same `<svg>` so they
   paint on top. `class:is-scale`/`is-root`/`is-characteristic`/`is-pressed` are bound directly to derived
@@ -273,12 +265,12 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
   per-component rather than hoisted into a shared global class, to preserve the original CSS exactly (a few
   visually-similar `.label` usages in the original actually had different font sizes depending on context —
   check before "deduplicating" any of these).
-- **`src/App.svelte`** — the composition root: wires `initMidi`/`initComputerKeys`/`initMic` callbacks into
+- **`src/App.svelte`** — the composition root: wires `initMidi`/`initComputerKeys` callbacks into
   `input`/`score` state, mounts `InfoPanel` + `Keyboard` + `StatusBar`, and calls `practice.randomize()`
   once on mount. MIDI and the computer keyboard share one `playNoteOn`/`playNoteOff` pair — the scored path
-  is identical by design, so it's literally the same code. Mouse clicks and mic input light keys via
+  is identical by design, so it's literally the same code. Mouse clicks light keys via
   `input.press`/`release` but never call `recordNoteOn`/`recordNoteOff`. Also owns `panic()` — release
-  everything, reachable from Esc, the top-bar ⏹ pill, the controller's own All Notes Off, and a device
+  everything, reachable from Esc, the controller's own All Notes Off, and a device
   disconnect. It calls `computerKeys.releaseAll()` *first* so those notes leave `input.pressedKeys` before
   the sweep over what's left, then `audio.allNotesOff()` as the backstop for anything `pressedKeys` never
   knew about. Deliberately **not** a run boundary: it records the note-offs, so held durations finalize
@@ -290,7 +282,7 @@ the UI. `src/App.svelte` is the composition root and `src/main.ts` is the entry 
 - Pitch classes are integers 0–11 (0 = C) per `ROOT_NAMES`; MIDI note numbers are absolute (36–96 covers the
   rendered keyboard range). These are distinct `type PitchClass = number` / `type MidiNote = number` aliases
   in `src/lib/types.ts` — the type system won't stop you mixing them up, but the names document intent.
-- All input sources (MIDI, mic, on-screen mouse) are normalized to the same `onNoteOn(midi, velocity)` /
+- All input sources (MIDI, computer keyboard, on-screen mouse) are normalized to the same `onNoteOn(midi, velocity)` /
   `onNoteOff(midi)` callback shape so `App.svelte` doesn't need per-source logic.
 - CSS custom properties (`--color-scale`, `--color-root`, `--color-pressed`, `--color-characteristic`,
   defined once in `src/app.css`) drive the SVG key fill colors via classes (`.is-scale`, `.is-root`,

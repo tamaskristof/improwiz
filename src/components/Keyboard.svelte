@@ -93,7 +93,7 @@
   let keyboardOctaveLabel = $derived(`C${Math.floor(input.keyboardOctaveBase / 12) - 1}`);
 
   // Quiz mode's reveal-on-hit: mark a scale pitch class "found" the moment it's held, from any
-  // input source (MIDI, computer keyboard, mouse, mic) — they all flow through pressedKeys alike.
+  // input source (MIDI, computer keyboard, mouse) — they all flow through pressedKeys alike.
   $effect(() => {
     if (!quiz.active) return;
     for (const midi of pressedKeys) {

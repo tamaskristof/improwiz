@@ -6,9 +6,9 @@
  * bookends every randomize() with the two, and polls getRunScore() to display the
  * run in progress live.
  *
- * Only MIDI input is recorded. Mic input is monophonic and emits spurious notes
- * during attack transients, and on-screen clicks are for exploring rather than
- * playing — scoring either would blame the player for something they didn't do.
+ * Only MIDI and the computer keyboard are recorded. On-screen clicks are for
+ * exploring rather than playing — scoring them would blame the player for
+ * something they didn't do.
  */
 
 import type { MidiNote, PitchClass, RunContext, RunSummary } from './types';

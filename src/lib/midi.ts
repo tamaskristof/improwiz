@@ -80,7 +80,7 @@ export function parseMidiMessage(data: Uint8Array | readonly number[]): ParsedMi
  * leave notes ringing forever otherwise, since the matching note-offs never arrive.
  *
  * `onController` covers every pedal/wheel message in one callback rather than one param per CC —
- * computerKeys.ts/microphone.ts have no analog for any of these, so this stays MIDI-only.
+ * computerKeys.ts has no analog for any of these, so this stays MIDI-only.
  */
 export function initMidi(
   onNoteOn: NoteOnHandler,

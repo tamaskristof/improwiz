@@ -1,6 +1,6 @@
 // src/state/audio.svelte.ts — sampled acoustic piano via @tonejs/piano, with configurable
 // velocity layers. Replaces the old oscillator synth (src/lib/sound.ts) as the sound source for
-// MIDI and on-screen key input. Mic input stays silent (your instrument already makes the sound).
+// MIDI and on-screen key input.
 //
 // Samples are self-hosted under public/salamander/ (see scripts/fetch-samples.mjs) and served from
 // our own origin so the PWA works offline. Only the velocity layers the current setting selects are

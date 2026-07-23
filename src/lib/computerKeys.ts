@@ -1,6 +1,6 @@
 // src/lib/computerKeys.ts — the computer keyboard as a playable input device.
 //
-// Deliberately mirrors midi.ts / microphone.ts's (onNoteOn, onNoteOff, ...) signature so App.svelte
+// Deliberately mirrors midi.ts's (onNoteOn, onNoteOff, ...) signature so App.svelte
 // can treat it like any other input source. Always active — it isn't gated on "no MIDI device", so a
 // controller hot-plugging mid-phrase never yanks the keys out from under you.
 //
